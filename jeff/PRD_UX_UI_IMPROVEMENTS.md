@@ -1,593 +1,1417 @@
-# Product Requirements Document: Vantage UX/UI Overhaul
+# PRD: Vantage UX/UI Improvements
+## Product Requirements Document v2.0
+
 **Author:** Jeff, SVP Product  
 **Date:** February 11, 2026  
-**Version:** 1.0  
-**Status:** Proposed  
-**Audience:** Engineering, Design, CEO
+**Status:** Ready for Engineering  
+**Business Goal:** $5,000/month recurring profit with minimal CEO input  
 
 ---
 
 ## Executive Summary
 
-I've spent the past day going through every page, every flow, and every pixel of Vantage. Here's the honest assessment:
+I've completed a comprehensive audit of Vantage across 29 page routes, 15+ components, the design system spec, CSS implementation, and dark mode architecture. Here's my honest assessment:
 
-**What's working:** The AI intelligence features are genuinely differentiated. Risk Analysis, Predictive Intelligence, Scout — these are real product superpowers. The data model is solid. The Jira integration is well-built. The hierarchy tree view for tasks is a good start.
+### The Good
+- **Core value prop is strong** — AI-powered PM intelligence is differentiated
+- **Real functionality exists** — Jira sync, task write-back, Scout AI, critical path analysis
+- **Dark mode infrastructure is sound** — CSS variable inversion is the right approach
+- **Design language spec is comprehensive** — The vision is there
 
-**What's not working:** The product feels like it was built feature-by-feature without a holistic UX pass. Each page is an island with its own patterns, spacing, and visual language. Dark mode is broken in dozens of places. There's no clear activation path for new users. The information architecture has grown organically and it shows.
+### The Problems
+1. **Dark mode is unreadable** — `text-neutral-400` hits barely-visible contrast in dark mode
+2. **Information overload** — Dashboard has 6 modes, sidebar has 14+ items, project detail is 2963 lines
+3. **Design spec vs. reality drift** — Spec says Indigo, code says Blue; patterns vary per page
+4. **Mobile is broken** — Sidebar hardcoded `w-64 hidden lg:flex`, no hamburger, no drawer
+5. **Onboarding is weak** — Getting Started checklist exists but doesn't guide to "aha"
+6. **No component library** — Every page reinvents cards, badges, buttons
 
-**The thesis of this PRD:** We don't need more features. We need the features we have to work 2x better. A user who can't read the screen in dark mode, can't find where to click, or doesn't know what to do after signup — that user churns. Every UX fix below is a retention fix.
+### The Impact
+These aren't aesthetic issues. They're **activation and retention killers**. A PM who can't read their dashboard at night cancels. A user who's overwhelmed on first load never connects their tools. A PM who can't check project health on their phone during a coffee run churns.
 
-**Estimated impact:** If we execute this well, I'd expect a 20-30% improvement in Day-7 retention and a measurable reduction in support questions.
-
----
-
-## Table of Contents
-
-1. [P0: Critical Dark Mode Fixes](#p0-critical-dark-mode-fixes)
-2. [P0: Activation & Onboarding](#p0-activation--onboarding)
-3. [P1: Design System Enforcement](#p1-design-system-enforcement)
-4. [P1: Information Architecture Restructure](#p1-information-architecture-restructure)
-5. [P1: Project Detail Page Redesign](#p1-project-detail-page-redesign)
-6. [P1: Mobile Responsiveness](#p1-mobile-responsiveness)
-7. [P2: Component Library Standardization](#p2-component-library-standardization)
-8. [P2: Microinteractions & Polish](#p2-microinteractions--polish)
-9. [P2: Accessibility Audit](#p2-accessibility-audit)
-10. [P3: Advanced UX Enhancements](#p3-advanced-ux-enhancements)
+### My Recommendation
+Ship the P0s this week (2-3 days of work). Then systematically work through P1s to build the foundation. The 2963-line project page needs decomposition, but it can wait until the user-facing issues are fixed.
 
 ---
 
-## P0: Critical Dark Mode Fixes
+## Prioritization Framework: ICE Scoring
 
-**Why P0:** ~50% of developer/PM users prefer dark mode. If they can't read the interface, they leave. This is not a cosmetic issue — it's a usability blocker.
+Each item scored on:
+- **Impact** (1-10): How many users affected? How much does it improve their experience?
+- **Confidence** (1-10): How sure are we this will work?
+- **Ease** (1-10): How quickly can engineering ship this? (10 = trivial, 1 = quarter-long project)
 
-### Problem
-
-The app uses CSS variable inversion (`data-theme="dark"`) which remaps the neutral scale. This is elegant in theory but breaks in practice because:
-
-1. **Many components use hardcoded neutral values that become unreadable.** `text-neutral-400` maps to `#6e7681` in dark mode — barely visible on `#0d1117` backgrounds.
-2. **Colored tint backgrounds** (`bg-amber-50`, `bg-red-50`, etc.) are remapped in `globals.css` but components keep getting added without testing in dark mode.
-3. **`dark:` Tailwind prefixes are dead code.** The app doesn't use Tailwind's `darkMode` class strategy, so every `dark:` class does nothing. This has wasted engineering cycles.
-
-### Requirements
-
-#### DM-1: Establish Dark Mode Color Rules
-Create a documented reference (add to `DESIGN_LANGUAGE.md`) with these absolute rules:
-
-| Use Case | Light Mode Token | Dark Mode Renders As | Min Contrast |
-|----------|-----------------|---------------------|--------------|
-| Headings | `text-neutral-900` | `#f0f3f6` | 15:1 |
-| Body text | `text-neutral-800` | `#e0e6eb` | 12:1 |
-| Secondary text | `text-neutral-700` | `#c9d1d9` | 9:1 |
-| Muted/labels | `text-neutral-500` | `#848d97` | 4.5:1 |
-| Disabled/hint | `text-neutral-400` | `#6e7681` | 3:1 (LOW — avoid for readable content) |
-| Borders | `border-neutral-200` | `#212830` | N/A |
-| Surface | `bg-white` (→ `#151b23`) | Auto | N/A |
-| Page bg | `bg-neutral-50` (→ `#0d1117`) | Auto | N/A |
-| Subtle bg | `bg-neutral-100` (→ `#151b23`) | Auto | N/A |
-
-**Rule: Never use `text-neutral-400` or lower for content a user needs to read in dark mode.**
-
-#### DM-2: Full Page Audit
-Every page must be tested in dark mode and fixed. Priority order:
-
-1. **Project Detail** (`/project/[id]`) — the most complex page, highest traffic
-2. **Dashboard / Command Center** (`/dashboard`) — the landing page
-3. **Projects list** (`/projects`)
-4. **Reports** (all sub-pages)
-5. **Settings** (`/settings` + all sub-pages)
-6. **Scout** (`/scout`)
-7. **Integrations** (`/integrations`)
-8. **Boards** (`/boards`), Timeline (`/timeline`)
-
-#### DM-3: Remove All `dark:` Prefixed Classes
-Run a project-wide search-and-remove for any `dark:` Tailwind classes. They do nothing and confuse engineers into thinking they work.
-
-#### DM-4: Add Dark Mode Visual Regression Tests
-Implement screenshot-based tests (Playwright or Chromatic) for all key pages in both themes. No PR should merge without passing dark mode visual checks.
-
-### Success Metrics
-- Zero readability issues reported by users in dark mode
-- WCAG AA contrast ratio (4.5:1 minimum) for all text elements in dark mode
+**ICE Score = Impact × Confidence × Ease**
 
 ---
 
-## P0: Activation & Onboarding
+## P0: Ship This Week (Critical — Blocking Activation/Retention)
 
-**Why P0:** The fastest path from signup to $5K MRR is converting free-trial users to paid. Every user who churns in the first session is revenue lost.
+### P0-1: Fix Dark Mode Text Contrast
+**ICE Score: 9 × 10 × 9 = 810** ⭐ HIGHEST PRIORITY
 
-### Problem
+#### Problem
+In dark mode, `text-neutral-400` maps to `#6e7681` — a **2.4:1 contrast ratio** against the dark background (`#151b23`). WCAG AA requires **4.5:1** for normal text. This means:
+- Timestamps unreadable
+- Captions invisible
+- Secondary labels require squinting
+- Users switch back to light mode or churn
 
-A new user who signs up today sees:
-1. The Command Center with zero data — just empty widgets
-2. No guidance on what to do first (connect Jira? Create a project? Explore Scout?)
-3. A Getting Started checklist that's buried and doesn't adapt to user context
-4. 6 dashboard view modes on a sidebar they haven't learned yet
+#### Evidence
+From `globals.css` line 31:
+```css
+--color-neutral-400: #6e7681;  /* muted icons/text — FAILS WCAG */
+```
 
-### Requirements
+Used extensively across project detail page, dashboard, scout, and all other pages for secondary text.
 
-#### OB-1: First-Run Experience (FRE)
-When a user has zero connected tools and zero projects:
+#### Solution
+Update the dark mode neutral scale in `globals.css`:
 
-**Screen 1: Welcome**
-- "Welcome to Vantage. Let's set you up in under 2 minutes."
-- Two paths:
-  - **"Connect your PM tool"** → OAuth flow for Jira/Monday/Asana
-  - **"Start fresh in Vantage"** → Create native project wizard
+```css
+html[data-theme="dark"] {
+  /* BEFORE                          AFTER (with contrast ratios) */
+  --color-neutral-400: #6e7681;  →  --color-neutral-400: #8b949e;  /* 4.5:1 ✓ */
+  --color-neutral-500: #848d97;  →  --color-neutral-500: #9ca3af;  /* 5.2:1 ✓ */
+  --color-neutral-600: #9ca3af;  →  --color-neutral-600: #adb5bd;  /* 6.1:1 ✓ */
+}
+```
 
-**Screen 2: Success**
-- After connecting or creating: "Your data is syncing. Here's what Vantage will show you..."
-- Animated preview of what their Command Center will look like with data
-- "While we sync, meet Scout →" (optional onboarding side-path)
+Also audit and replace any `text-neutral-400` used for readable text with `text-neutral-500` or `text-neutral-700` as appropriate.
 
-**Screen 3: Command Center (with data)**
-- Auto-navigate to Command Center
-- Pulsing highlights on key elements: "This is your health score", "These are your at-risk items"
-- Dismiss-able, never shows again after first visit
+#### Success Metrics
+- All text passes WCAG AA (4.5:1) — verify with axe-core
+- Dark mode session duration equals light mode (currently expect it's lower)
+- Zero support tickets about "can't read text"
 
-#### OB-2: Empty States for Every Page
-Every page that can be empty needs a purpose-built empty state:
-
-| Page | Empty State Message | CTA |
-|------|-------------------|-----|
-| Projects | "No projects yet. Connect a PM tool or create one here." | Connect Tool / Create Project |
-| Boards | "Your boards will appear here once you have projects." | Go to Projects |
-| Timeline | "Timeline view needs project data. Get started:" | Connect Tool |
-| Reports | "Reports are generated from your project data." | Connect Tool |
-| Scout | "Scout gets smarter with more data. Connect a tool to unlock AI insights." | Connect Tool |
-
-#### OB-3: Progressive Dashboard
-Don't show all 6 Command Center views to a new user. Start with **The Brief** only. Unlock additional views as the user's data grows:
-
-| View Mode | Unlock Condition |
-|-----------|-----------------|
-| The Brief | Always available |
-| Focus Mode | After first blocked task detected |
-| Risk Forecast | After 2+ projects synced |
-| Meeting Intel | After 5+ tasks with assignees |
-| Stakeholder Radar | After 10+ team members detected |
-| Full Dashboard | After 2 weeks of use |
-
-Show locked views as greyed cards with "Unlock by..." messaging.
-
-### Success Metrics
-- 80%+ of new users complete onboarding (connect tool or create project)
-- Time to "aha moment" < 3 minutes (defined as viewing a project with health score)
-- Day-1 retention > 60%
+#### Engineering Notes
+- CSS-only change, no component updates required
+- Run `npx axe-core` on all pages post-fix
+- Estimated effort: **2 hours**
 
 ---
 
-## P1: Design System Enforcement
+### P0-2: Add Mobile Navigation
+**ICE Score: 9 × 9 × 7 = 567**
 
-**Why P1:** Inconsistency is cognitive debt. Every time a user encounters a different card style, button treatment, or spacing pattern, they burn mental energy re-learning the interface.
+#### Problem
+The sidebar is hardcoded as:
+```tsx
+<aside className="w-64 bg-white ... hidden lg:flex ...">
+```
 
-### Problem
+On mobile and tablet:
+- **No hamburger menu** in header
+- **No slide-out drawer** available
+- Users simply cannot navigate the app
+- 100% of mobile users are blocked
 
-I found at least 5 different card styles, 3 different button treatments, and inconsistent spacing (p-4, p-5, p-6 used seemingly at random) across the app. The design language doc exists but isn't enforced in code.
+PMs check project health on their phones constantly. Currently, they can't use Vantage on mobile at all.
 
-### Requirements
+#### Solution
 
-#### DS-1: Reconcile Primary Color
-The design language doc defines primary as **Indigo `#6366f1`**, but `globals.css` implements **Blue `#0066CC`**. Pick one. My recommendation: keep the implemented blue — it's more professional for enterprise SaaS and differentiates from Figma/Linear's purple/indigo. Update the design language doc.
+1. **Add hamburger button to header** (visible on `lg:hidden`):
+```tsx
+// In header component
+<button 
+  className="lg:hidden p-2 text-neutral-600 hover:bg-neutral-100 rounded-lg"
+  onClick={() => setMobileNavOpen(true)}
+  aria-label="Open navigation"
+>
+  <Menu size={24} />
+</button>
+```
 
-#### DS-2: Standardized Card Component
-Create a single `<Card>` component with variants:
+2. **Create MobileNav drawer component**:
+```tsx
+// components/mobile-nav.tsx
+export function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  
+  return (
+    <div className="fixed inset-0 z-50 lg:hidden">
+      {/* Overlay */}
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      
+      {/* Drawer */}
+      <nav className="fixed left-0 top-0 bottom-0 w-64 bg-white shadow-xl animate-slide-in overflow-y-auto">
+        <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
+          <span className="font-bold text-neutral-900">Vantage</span>
+          <button onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-600">
+            <X size={20} />
+          </button>
+        </div>
+        {/* Same nav items as desktop sidebar */}
+        <div className="p-4 space-y-1">
+          {mainNav.map(...)} {/* Reuse existing nav structure */}
+        </div>
+      </nav>
+    </div>
+  );
+}
+```
 
-```typescript
+3. **Add state management in layout**:
+```tsx
+const [mobileNavOpen, setMobileNavOpen] = useState(false);
+```
+
+#### Success Metrics
+- Mobile sessions increase from 0% to >15% of total
+- Mobile bounce rate <50%
+- Users can complete core workflows on phone
+
+#### Engineering Notes
+- New component + header modification
+- Reuse existing sidebar nav items
+- Test on iOS Safari + Android Chrome
+- Estimated effort: **4 hours**
+
+---
+
+### P0-3: Resolve Primary Color Inconsistency
+**ICE Score: 7 × 10 × 10 = 700**
+
+#### Problem
+**Design Language spec (DESIGN_LANGUAGE.md):**
+```css
+--color-primary: #6366f1;  /* Indigo-500 */
+```
+
+**Actual implementation (globals.css):**
+```css
+--color-primary: #0066CC;  /* Blue */
+```
+
+This causes:
+- Designers follow spec, engineers follow code → inconsistency
+- Trust erosion ("why does the brand feel off?")
+- Confusion in code reviews
+
+#### Solution
+**Decision: Keep Blue (#0066CC).**
+
+Rationale:
+- Already implemented consistently across the app
+- Blue conveys trust/reliability (critical for PM tools)
+- Changing to Indigo requires full visual regression testing
+- The current blue works well
+
+**Action:**
+1. Update DESIGN_LANGUAGE.md to document Blue as the primary:
+```css
+--color-primary: #0066CC;  /* Vantage Blue - Main brand action color */
+```
+
+2. Add a comment in globals.css:
+```css
+/* Primary: Vantage Blue #0066CC (not Indigo per original spec) */
+```
+
+#### Success Metrics
+- Design spec matches implementation
+- No confusion in code reviews
+- Designer/engineer alignment
+
+#### Engineering Notes
+- Documentation-only change
+- Estimated effort: **30 minutes**
+
+---
+
+### P0-4: Simplify Dashboard Information Architecture
+**ICE Score: 8 × 8 × 6 = 384**
+
+#### Problem
+The Command Center dashboard has **6 view modes** immediately visible:
+```
+[The Brief] [Focus Mode] [Activity] [Forecast] [Team] [Full Dashboard]
+```
+
+For a new user:
+- Paralysis of choice — "which one should I use?"
+- No clear default — all options equal weight
+- Cognitive overload before they've even seen their data
+- Activation suffers because users don't know where to start
+
+#### Solution
+
+1. **Default to The Brief** — It's the killer feature, the AI-generated morning summary. Make it the hero experience.
+
+2. **Collapse secondary modes into a dropdown:**
+```tsx
+// BEFORE: 6 tabs visible
+[Brief] [Focus] [Activity] [Forecast] [Team] [Dashboard]
+
+// AFTER: 2 visible + dropdown
+[The Brief ▾]  [Full Dashboard]
+              ↳ Focus Mode
+              ↳ Activity  
+              ↳ Forecast
+              ↳ Team
+```
+
+3. **Add contextual entry points** within The Brief:
+- "🔥 3 fires need attention" → links to Focus Mode
+- "📅 Standup at 10am" → links to Activity
+- "⚠️ 2 risks escalating" → links to Forecast
+
+This lets users discover modes through context rather than choosing blindly.
+
+4. **Progressive disclosure for new users:**
+- Week 1: Show only The Brief and Full Dashboard
+- After first blocker: Introduce Focus Mode
+- After 7 days: Show full nav if engagement threshold met
+
+#### Implementation
+Modify `ViewNav` component in `dashboard/page.tsx`:
+
+```tsx
+function ViewNav({ current, onNavigate }: { current: View; onNavigate: (v: View) => void }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  
+  const primaryModes = [
+    { id: "brief", label: "The Brief", icon: <Sparkles size={14} /> },
+    { id: "dashboard", label: "Full Dashboard", icon: <Activity size={14} /> },
+  ];
+  
+  const secondaryModes = [
+    { id: "focus", label: "Focus Mode", icon: <Target size={14} /> },
+    { id: "meetings", label: "Activity", icon: <Calendar size={14} /> },
+    { id: "forecast", label: "Forecast", icon: <TrendingUp size={14} /> },
+    { id: "stakeholders", label: "Team", icon: <Users size={14} /> },
+  ];
+
+  return (
+    <div className="sticky top-0 z-30 flex items-center gap-1 mb-6 p-1 bg-neutral-100 rounded-xl">
+      {/* Primary tab: The Brief with dropdown */}
+      <div className="relative">
+        <button
+          onClick={() => current === "brief" ? setDropdownOpen(!dropdownOpen) : onNavigate("brief")}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium ${
+            ["brief", "focus", "meetings", "forecast", "stakeholders"].includes(current)
+              ? "bg-white text-primary shadow-sm"
+              : "text-neutral-600 hover:bg-white/50"
+          }`}
+        >
+          <Sparkles size={14} />
+          {current === "brief" ? "The Brief" : secondaryModes.find(m => m.id === current)?.label || "The Brief"}
+          <ChevronDown size={12} />
+        </button>
+        
+        {dropdownOpen && (
+          <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-40 min-w-[160px]">
+            <button onClick={() => { onNavigate("brief"); setDropdownOpen(false); }} className="...">
+              The Brief
+            </button>
+            <div className="border-t border-neutral-100 my-1" />
+            {secondaryModes.map(mode => (
+              <button key={mode.id} onClick={() => { onNavigate(mode.id); setDropdownOpen(false); }} className="...">
+                {mode.icon} {mode.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {/* Full Dashboard always visible */}
+      <button
+        onClick={() => onNavigate("dashboard")}
+        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium ${
+          current === "dashboard" ? "bg-white text-primary shadow-sm" : "text-neutral-600 hover:bg-white/50"
+        }`}
+      >
+        <Activity size={14} />
+        Full Dashboard
+      </button>
+    </div>
+  );
+}
+```
+
+#### Success Metrics
+- Time to first action decreases (measure clicks to first real interaction)
+- "Where do I go?" support questions drop
+- Activation rate (connect tool → view real data in 24h) increases by 20%
+
+#### Engineering Notes
+- Refactor ViewNav component
+- Add localStorage for progressive disclosure state
+- Estimated effort: **4 hours**
+
+---
+
+## P1: Ship This Sprint (High Impact Foundation Work)
+
+### P1-1: Create Shared UI Component Library
+**ICE Score: 8 × 9 × 5 = 360**
+
+#### Problem
+Every page reinvents basic components with inconsistent patterns:
+
+**Cards** — 4 different styles across pages:
+```tsx
+// dashboard/page.tsx
+<div className="bg-white rounded-lg shadow-sm p-4 border-l-4">
+
+// project/[id]/page.tsx
+<div className="bg-white rounded-xl shadow-sm border border-neutral-100 p-6">
+
+// projects/page.tsx
+<div className="bg-white rounded-lg shadow-sm p-6 border-l-4 ${health.border}">
+
+// boards/page.tsx
+<div className="bg-white rounded-xl border border-neutral-200 p-5">
+```
+
+**Badges** — Inconsistent sizing and styling:
+```tsx
+// Some use text-[10px], others text-xs
+// Some use rounded, others rounded-full
+// Padding varies: px-1.5 py-0.5 vs px-2 py-1
+```
+
+**Buttons** — No shared abstraction, styles duplicated everywhere
+
+#### Solution
+Create `/components/ui/` directory with standardized components:
+
+**1. Card Component:**
+```tsx
+// components/ui/card.tsx
 interface CardProps {
-  variant: 'default' | 'raised' | 'outlined' | 'highlighted';
-  padding: 'sm' | 'md' | 'lg';   // maps to p-4, p-5, p-6
+  variant?: 'default' | 'elevated' | 'flat' | 'interactive';
   status?: 'success' | 'warning' | 'danger' | 'info';
+  padding?: 'sm' | 'md' | 'lg';
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function Card({ 
+  variant = 'default', 
+  padding = 'md',
+  status,
+  children,
+  className 
+}: CardProps) {
+  const baseStyles = 'bg-white rounded-xl';
+  
+  const variantStyles = {
+    default: 'shadow-sm border border-neutral-200',
+    elevated: 'shadow-md border border-neutral-200',
+    flat: 'border border-neutral-200',
+    interactive: 'shadow-sm border border-neutral-200 hover:shadow-md hover:border-neutral-300 transition-all cursor-pointer',
+  };
+  
+  const paddingStyles = {
+    sm: 'p-4',
+    md: 'p-5',
+    lg: 'p-6',
+  };
+  
+  const statusStyles = status ? `border-l-4 border-l-${status}` : '';
+
+  return (
+    <div className={cn(baseStyles, variantStyles[variant], paddingStyles[padding], statusStyles, className)}>
+      {children}
+    </div>
+  );
+}
+
+export function CardHeader({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn('flex items-center gap-3 mb-4', className)}>{children}</div>;
+}
+
+export function CardTitle({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <h3 className={cn('text-lg font-semibold text-neutral-900', className)}>{children}</h3>;
+}
+
+export function CardContent({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn('text-sm text-neutral-700', className)}>{children}</div>;
+}
+```
+
+**2. Badge Component:**
+```tsx
+// components/ui/badge.tsx
+interface BadgeProps {
+  variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'outline';
+  size?: 'sm' | 'md';
   children: React.ReactNode;
 }
-```
 
-Every card-like element across the app should use this. No more `bg-white rounded-xl shadow-sm border border-neutral-100 p-6` scattered in 40+ places.
+export function Badge({ variant = 'default', size = 'sm', children }: BadgeProps) {
+  const baseStyles = 'inline-flex items-center font-medium rounded-full';
+  
+  const sizeStyles = {
+    sm: 'px-2 py-0.5 text-[10px]',
+    md: 'px-2.5 py-1 text-xs',
+  };
+  
+  const variantStyles = {
+    default: 'bg-neutral-100 text-neutral-700',
+    success: 'bg-green-100 text-green-700',
+    warning: 'bg-orange-100 text-orange-700', 
+    danger: 'bg-red-100 text-red-700',
+    info: 'bg-blue-100 text-blue-700',
+    outline: 'bg-transparent border border-neutral-300 text-neutral-600',
+  };
 
-#### DS-3: Standardized Stat Box
-Create a `<StatBox>` component:
-
-```typescript
-interface StatBoxProps {
-  label: string;
-  value: number | string;
-  icon: LucideIcon;
-  trend?: 'up' | 'down' | 'flat';
-  status?: 'success' | 'warning' | 'danger' | 'neutral';
+  return (
+    <span className={cn(baseStyles, sizeStyles[size], variantStyles[variant])}>
+      {children}
+    </span>
+  );
 }
 ```
 
-#### DS-4: Standardized Filter Bar
-Create a `<FilterBar>` component with status filters, search, and action buttons. Currently every page rebuilds this from scratch.
+**3. Button Component:**
+```tsx
+// components/ui/button.tsx
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
+  loading?: boolean;
+  icon?: React.ReactNode;
+}
 
-#### DS-5: Spacing Scale
-Enforce consistent spacing:
-- **Section gap:** `space-y-6` (between major sections)
-- **Card gap:** `gap-4` (between cards in a grid)
-- **Internal padding:** `p-5` (standard card content)
-- **Header padding:** `px-6 py-4` (section headers)
+export function Button({ 
+  variant = 'primary',
+  size = 'md',
+  loading,
+  icon,
+  children,
+  disabled,
+  className,
+  ...props 
+}: ButtonProps) {
+  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2';
+  
+  const variantStyles = {
+    primary: 'bg-primary text-white hover:bg-primary-600 disabled:bg-primary/50',
+    secondary: 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50',
+    ghost: 'bg-transparent text-neutral-600 hover:bg-neutral-100',
+    danger: 'bg-danger text-white hover:bg-danger-600',
+  };
+  
+  const sizeStyles = {
+    sm: 'px-3 py-1.5 text-xs gap-1.5',
+    md: 'px-4 py-2 text-sm gap-2',
+    lg: 'px-6 py-3 text-base gap-2',
+  };
 
-Document this in the design language doc and enforce via linting.
-
-### Success Metrics
-- Every card on the app uses the standardized `<Card>` component
-- Visual consistency score (internal audit): 90%+ across all pages
-
----
-
-## P1: Information Architecture Restructure
-
-**Why P1:** Users shouldn't need a map to use the product. The current IA has grown organically and needs intentional structure.
-
-### Problem
-
-1. **6 dashboard views** are overwhelming for new users and even confusing for power users (what's the difference between "Focus Mode" and "The Brief"?)
-2. **Settings has 8+ sub-pages** with no grouping — API Keys, SSO, and Audit Log are enterprise features mixed with basic profile settings
-3. **Sidebar has 12 items** — too many for a flat list. No hierarchy or grouping.
-4. **No breadcrumbs** on most pages — users lose their place, especially drilling from Projects → Project Detail
-
-### Requirements
-
-#### IA-1: Restructure Sidebar Navigation
-
-**Proposed new structure:**
-
-```
-MAIN
-├── Home (Command Center — default to Brief)
-├── Projects
-├── Boards
-├── Timeline
-└── Reports
-
-TOOLS
-├── Scout AI
-├── Dependencies
-└── Activity Feed
-
-SETTINGS (gear icon, bottom)
-├── General (profile, appearance, notifications)
-├── Integrations (connected tools, field mappings)
-├── Security (2FA, SSO, API keys, audit log)
-└── Billing (subscription, invoices)
+  return (
+    <button 
+      className={cn(baseStyles, variantStyles[variant], sizeStyles[size], className)}
+      disabled={disabled || loading}
+      {...props}
+    >
+      {loading ? <Loader2 size={16} className="animate-spin" /> : icon}
+      {children}
+    </button>
+  );
+}
 ```
 
-This reduces top-level items from 12 to 8, groups related features, and separates "daily use" from "occasional configuration."
+**4. Additional components to create:**
+- `StatusBadge` — For health/status indicators
+- `SourceBadge` — For Jira/Monday/Asana source indicators
+- `Modal` — Standardized modal with header/body/footer
+- `Input` / `Select` / `Textarea` — Form components
+- `Table` — With sorting, filtering patterns
+- `EmptyState` — Consistent empty state pattern
+- `Skeleton` — Loading skeletons
 
-#### IA-2: Simplify Dashboard Views
-Reduce from 6 views to 3:
+#### Migration Plan
+1. Create components in `/components/ui/`
+2. Start using in new code immediately
+3. Migrate existing pages incrementally (start with dashboard, then projects, then project detail)
+4. Add Storybook documentation for each component
 
-| View | What It Contains |
-|------|-----------------|
-| **Overview** | Brief + key stats + alerts (merge of Brief and Focus) |
-| **Intelligence** | Risk Forecast + Meeting Intel + Stakeholder Radar (merge of 3 AI views) |
-| **Portfolio** | Full dashboard with all widgets (current Full Dashboard) |
+#### Success Metrics
+- Component reuse: Each UI component used in 5+ places
+- Consistency: Visual audit passes (same patterns everywhere)
+- Velocity: New pages built 30% faster using shared components
 
-Users can still access all the same data — just organized into fewer, more distinct tabs.
-
-#### IA-3: Add Breadcrumbs
-Every page deeper than top-level should have breadcrumbs:
-- `Projects → Customer Portal v2.0`
-- `Settings → Security → API Keys`
-- `Reports → Sprint Summary`
-
-Use a consistent `<Breadcrumbs>` component positioned below the header, above the page content.
-
-#### IA-4: Add Global Command Palette (Cmd+K)
-Power users should be able to jump anywhere instantly:
-- Search projects, tasks, pages
-- Quick actions (Create Project, Trigger Sync, Open Scout)
-- Recently viewed items
-
-This is table stakes for developer/PM tools (see: Linear, Notion, Figma, GitHub).
-
-### Success Metrics
-- Average clicks to reach any page: ≤ 2
-- User-reported "I couldn't find X" support tickets: -50%
+#### Engineering Notes
+- Create `/components/ui/index.ts` barrel export
+- Add `cn()` utility using `clsx` + `tailwind-merge`
+- Estimated effort: **8 hours** for core components, ongoing migration
 
 ---
 
-## P1: Project Detail Page Redesign
+### P1-2: Fix Dark Mode Tinted Backgrounds
+**ICE Score: 8 × 9 × 7 = 504**
 
-**Why P1:** This is the highest-traffic page after the dashboard. It's also the most complex — and it shows.
+#### Problem
+Status tint backgrounds (`bg-red-50`, `bg-green-50`, etc.) are handled via CSS `!important` overrides:
 
-### Problem
+```css
+html[data-theme="dark"] .bg-red-50 { background-color: #3d1214 !important; }
+```
 
-The project detail page is a vertical scroll of 8+ panels with no structure:
-1. Project Intelligence (stats, completion, blocked, insights)
-2. Tasks (tree view with filters)
-3. Team Workload
-4. Risk Analysis
-5. Predictive Intelligence
-6. Scope Creep Monitor
-7. Recent Activity
-8. Quick Actions
+This is fragile because:
+- New tint colors require manual CSS additions
+- Inline styles bypass these overrides
+- `!important` creates specificity wars
+- Easy to introduce bugs
 
-A user who lands here is looking for ONE thing: "Is my project healthy and what do I need to act on?" Instead, they get a wall of information.
+#### Solution
+Create semantic status variables that work in both themes:
 
-### Requirements
+```css
+/* globals.css */
+:root {
+  --status-success-bg: #f0fdf4;
+  --status-success-text: #166534;
+  --status-success-border: #86efac;
+  
+  --status-warning-bg: #fff7ed;
+  --status-warning-text: #9a3412;
+  --status-warning-border: #fdba74;
+  
+  --status-danger-bg: #fef2f2;
+  --status-danger-text: #991b1b;
+  --status-danger-border: #fca5a5;
+  
+  --status-info-bg: #eff6ff;
+  --status-info-text: #1e40af;
+  --status-info-border: #93c5fd;
+}
 
-#### PD-1: Two-Column Layout
-Split into a 2/3 + 1/3 layout:
+html[data-theme="dark"] {
+  --status-success-bg: #0f2d1a;
+  --status-success-text: #86efac;
+  --status-success-border: #22c55e;
+  
+  --status-warning-bg: #2d2006;
+  --status-warning-text: #fcd34d;
+  --status-warning-border: #f59e0b;
+  
+  --status-danger-bg: #3d1214;
+  --status-danger-text: #fca5a5;
+  --status-danger-border: #ef4444;
+  
+  --status-info-bg: #0c2d6b;
+  --status-info-text: #93c5fd;
+  --status-info-border: #3b82f6;
+}
+```
 
-**Left column (2/3):**
-- Project header (name, health score, source badge, sync status)
-- Task list (tree view with filters — this is the main interaction)
-- Recent Activity
+Then create a `StatusAlert` component:
 
-**Right column (1/3) — "Intelligence Sidebar":**
-- Health summary (completion %, trend)
-- Top alerts (blocked, overdue — clickable)
-- Risk Analysis (simplified — just the risk level + top 3 items)
-- Quick Actions
+```tsx
+// components/ui/status-alert.tsx
+interface StatusAlertProps {
+  status: 'success' | 'warning' | 'danger' | 'info';
+  children: React.ReactNode;
+}
 
-**Why:** The task list is the user's primary interaction. Intelligence data is context that supports the task list, not a separate section to scroll through.
+export function StatusAlert({ status, children }: StatusAlertProps) {
+  return (
+    <div 
+      className="rounded-lg p-4 border"
+      style={{
+        backgroundColor: `var(--status-${status}-bg)`,
+        color: `var(--status-${status}-text)`,
+        borderColor: `var(--status-${status}-border)`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+```
 
-#### PD-2: Collapsible Intelligence Panels
-Each panel in the intelligence sidebar should be collapsible. Default: Health summary open, Risk Analysis open, others collapsed. User preference persisted in localStorage.
+#### Success Metrics
+- Zero dark mode color bugs in new components
+- Remove all `!important` overrides for tinted backgrounds
+- Consistent status colors across all pages
 
-#### PD-3: Sticky Task Filters
-The task filter bar (search, status filters, Add Task, CSV) should be **sticky** — it stays pinned when the user scrolls through the task list. Currently it scrolls away and users have to scroll back up to filter.
-
-#### PD-4: Task Detail Slide-Over
-When clicking a task, open a slide-over panel from the right (not navigate away). This is the Jira pattern — click an issue, see details, close, you're back where you were.
-
-The slide-over should contain:
-- Task title (editable)
-- Status (editable dropdown)
-- Priority (editable dropdown)
-- Assignee (editable with search)
-- Due date (editable date picker)
-- Description (rich text, editable)
-- Comments thread
-- External link (to Jira/source)
-
-#### PD-5: Inline Task Status Updates
-Allow changing task status directly from the task list row (click the status badge → dropdown → select new status). Don't force users to open the detail panel just to change a status.
-
-### Success Metrics
-- Time to find a specific task: < 5 seconds
-- Time to change a task status: < 3 seconds (from task list)
-- Scroll depth: top 3 panels visible without scrolling on 1080p
-
----
-
-## P1: Mobile Responsiveness
-
-**Why P1:** PMs check project status from their phones constantly — in meetings, in transit, during coffee. If Vantage doesn't work on mobile, they open Jira instead.
-
-### Requirements
-
-#### MR-1: Responsive Sidebar
-- Desktop: Fixed sidebar (current)
-- Tablet: Collapsible sidebar (hamburger toggle)
-- Mobile: Bottom tab bar with 5 key items (Home, Projects, Scout, Notifications, More)
-
-#### MR-2: Responsive Task List
-On mobile, the task list should show:
-- Title (full width)
-- Status badge
-- Priority badge
-- Tap to expand → shows assignee, due date, type, actions
-
-Hide TICKET, ASSIGNEE, DUE DATE, TYPE columns on mobile. Show them on tap/expand.
-
-#### MR-3: Responsive Project Detail
-- Stack two-column layout to single column on mobile
-- Intelligence sidebar becomes a collapsible drawer from bottom
-- Swipe gestures: swipe between project sections
-
-#### MR-4: Touch-Friendly Targets
-All interactive elements must be minimum **44x44px** touch targets on mobile (Apple HIG standard).
-
-### Success Metrics
-- 100% of key flows completable on mobile (view projects, check health, change status)
-- Lighthouse mobile score: 90+
+#### Engineering Notes
+- Add CSS variables first
+- Create StatusAlert component
+- Gradually replace hardcoded bg-*-50 classes
+- Estimated effort: **4 hours**
 
 ---
 
-## P2: Component Library Standardization
+### P1-3: Improve Empty States
+**ICE Score: 7 × 9 × 8 = 504**
 
-### Requirements
+#### Problem
+When users have no data, they see minimal guidance:
+```
+"No projects yet"
+[Create Project]
+```
 
-#### CL-1: Shared Component Inventory
-Extract and standardize these components:
+This doesn't:
+- Explain **why** they should care
+- Show them **what value** they'll get
+- Guide them to the **next action**
 
-| Component | Usage |
-|-----------|-------|
-| `<Card>` | Every card/panel in the app |
-| `<StatBox>` | Stat display (Blocked: 0, High Priority: 38) |
-| `<FilterBar>` | Status filters + search + actions |
-| `<Badge>` | Status badges, priority badges, source badges |
-| `<HealthScore>` | Numeric health score with color coding |
-| `<EmptyState>` | Page/section empty states |
-| `<Breadcrumbs>` | Navigation breadcrumbs |
-| `<SlideOver>` | Detail panels (task detail, project detail) |
-| `<TreeItem>` | Recursive tree node (task hierarchy) |
-| `<Avatar>` | User avatar (initials or image) |
+New users who see empty states without guidance often leave.
 
-#### CL-2: Storybook
-Set up Storybook for the component library. Each component should have:
-- All variants documented
-- Light and dark mode previews
-- Mobile viewport preview
-- Accessibility notes
+#### Solution
+Create compelling, action-oriented empty states:
 
-### Success Metrics
-- 100% of UI patterns use shared components
-- New pages can be built 50% faster using existing components
+```tsx
+// components/ui/empty-state.tsx
+interface EmptyStateProps {
+  type: 'connections' | 'projects' | 'tasks' | 'reports' | 'generic';
+  onAction?: () => void;
+}
 
----
+const emptyStateContent = {
+  connections: {
+    icon: <Plug size={32} className="text-primary" />,
+    title: "Connect your first tool",
+    description: "Vantage works best when connected to Jira, Monday, or Asana. You'll get AI-powered insights, risk detection, and automated reporting across all your projects.",
+    benefits: [
+      "Health scores for every project",
+      "AI-detected blockers and risks", 
+      "Automated stakeholder reports"
+    ],
+    actionLabel: "Connect Jira",
+    actionHref: "/connect-tools",
+  },
+  projects: {
+    icon: <FolderKanban size={32} className="text-primary" />,
+    title: "No projects yet",
+    description: "Connect a tool to import projects automatically, or create a native Vantage project to start managing work.",
+    benefits: [
+      "Unified view across all tools",
+      "Real-time health monitoring",
+      "AI-powered risk predictions"
+    ],
+    actionLabel: "Connect a tool",
+    actionHref: "/connect-tools",
+    secondaryAction: { label: "Create project", href: "#" },
+  },
+  tasks: {
+    icon: <CheckCircle2 size={32} className="text-primary" />,
+    title: "No tasks in this project",
+    description: "Tasks will appear here once they're synced from your connected tool, or you can create tasks directly.",
+    actionLabel: "Create task",
+  },
+  reports: {
+    icon: <BarChart3 size={32} className="text-primary" />,
+    title: "No reports yet",
+    description: "Generate your first AI-powered status report to share with stakeholders.",
+    actionLabel: "Generate report",
+  },
+  generic: {
+    icon: <Inbox size={32} className="text-neutral-400" />,
+    title: "Nothing here yet",
+    description: "Check back later or take an action to get started.",
+    actionLabel: "Go to dashboard",
+    actionHref: "/dashboard",
+  },
+};
 
-## P2: Microinteractions & Polish
+export function EmptyState({ type, onAction }: EmptyStateProps) {
+  const content = emptyStateContent[type];
+  
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+        {content.icon}
+      </div>
+      
+      <h3 className="text-lg font-semibold text-neutral-900 mb-2">
+        {content.title}
+      </h3>
+      
+      <p className="text-sm text-neutral-600 mb-4 max-w-md">
+        {content.description}
+      </p>
+      
+      {content.benefits && (
+        <ul className="text-sm text-neutral-600 mb-6 space-y-1">
+          {content.benefits.map((benefit, i) => (
+            <li key={i} className="flex items-center gap-2">
+              <CheckCircle2 size={14} className="text-green-500" />
+              {benefit}
+            </li>
+          ))}
+        </ul>
+      )}
+      
+      <div className="flex items-center gap-3">
+        {content.actionHref ? (
+          <Link href={content.actionHref} className="btn-primary">
+            {content.actionLabel}
+          </Link>
+        ) : (
+          <button onClick={onAction} className="btn-primary">
+            {content.actionLabel}
+          </button>
+        )}
+        
+        {content.secondaryAction && (
+          <Link href={content.secondaryAction.href} className="btn-secondary">
+            {content.secondaryAction.label}
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+```
 
-### Requirements
+#### Usage
+```tsx
+// In projects page
+{projects.length === 0 && <EmptyState type="projects" />}
 
-#### MP-1: Loading States
-Replace all spinner-only loading states with skeleton screens that match the layout of the content being loaded. Users should see the shape of the data before the data arrives.
+// In dashboard when no connections
+{!hasRealData && <EmptyState type="connections" />}
+```
 
-#### MP-2: Transitions
-- Page transitions: subtle fade-in (200ms)
-- Panel open/close: slide + fade (250ms ease-out)
-- Status changes: color transition with a brief checkmark animation
-- Card hover: subtle lift (translateY -1px, shadow increase)
+#### Success Metrics
+- Connection rate increases (users understand the value)
+- Support tickets about "empty dashboard" decrease
+- Activation rate improves
 
-#### MP-3: Toasts & Feedback
-Every user action that changes state should produce visible feedback:
-- "Task status updated" → success toast
-- "Sync triggered" → info toast with progress
-- "Project created" → success toast with link
-- "Error saving" → danger toast with retry
-
-#### MP-4: Keyboard Shortcuts
-| Shortcut | Action |
-|----------|--------|
-| `Cmd+K` | Command palette |
-| `Cmd+/` | Open Scout |
-| `N` | New task (in project context) |
-| `F` | Focus search |
-| `1-5` | Switch dashboard views |
-| `Esc` | Close panel/modal |
-
-Display shortcuts in tooltips and in a `?` help overlay.
-
-### Success Metrics
-- Zero "dead clicks" (clicks with no visible response)
-- NPS improvement from "feels professional" feedback
-
----
-
-## P2: Accessibility Audit
-
-### Requirements
-
-#### A11Y-1: WCAG AA Compliance
-- All text passes 4.5:1 contrast ratio (regular text) or 3:1 (large text)
-- All interactive elements have visible focus indicators
-- All images/icons have alt text or aria-labels
-- All form inputs have associated labels
-
-#### A11Y-2: Screen Reader Support
-- Proper heading hierarchy (h1 → h2 → h3, no skipping)
-- Landmark regions (main, nav, aside)
-- ARIA live regions for dynamic content (sync status, toast notifications)
-- Proper tab order through all interactive elements
-
-#### A11Y-3: Color Independence
-No information should be conveyed by color alone. All status indicators must have:
-- Color + label (e.g., green dot + "Done")
-- Color + icon (e.g., red circle + ban icon for Blocked)
-
-### Success Metrics
-- 0 critical WCAG AA violations (Axe audit)
-- All pages navigable with keyboard only
-
----
-
-## P3: Advanced UX Enhancements
-
-### PX-1: Personalized Home Feed
-Replace the static Command Center with a personalized feed based on user role and behavior:
-- PM sees: their projects, their blocked tasks, upcoming deadlines
-- Manager sees: team workload, cross-project risks, portfolio health
-- Executive sees: portfolio summary, budget status, milestone tracking
-
-### PX-2: Natural Language Search
-Upgrade the search bar to understand natural language:
-- "show me all blocked tasks in Customer Portal"
-- "what's overdue this week"
-- "Tyler's workload"
-
-Route these to Scout AI for processing, return results inline in the search dropdown.
-
-### PX-3: Inline Comments on Anything
-Allow users to comment on any object — not just tasks. Comment on:
-- Project health scores ("This looks wrong, QA project finished last week")
-- Risk items ("Already addressed in today's standup")
-- Team workload ("Sarah is OOO this week, redistribute")
-
-### PX-4: Workspace Themes
-Beyond light/dark, allow workspace-level customization:
-- Custom primary color (brand alignment)
-- Compact vs. comfortable density
-- Logo upload for white-labeling (enterprise tier)
-
----
-
-## Prioritization Summary (ICE Scoring)
-
-| Initiative | Impact | Confidence | Ease | ICE Score | Priority |
-|-----------|--------|-----------|------|-----------|----------|
-| Dark Mode Fixes (DM-1 to DM-3) | 9 | 10 | 8 | **720** | P0 |
-| First-Run Experience (OB-1) | 10 | 8 | 5 | **400** | P0 |
-| Empty States (OB-2) | 7 | 9 | 8 | **504** | P0 |
-| Progressive Dashboard (OB-3) | 6 | 7 | 5 | **210** | P0 |
-| Design System Reconcile (DS-1) | 5 | 10 | 9 | **450** | P1 |
-| Standardized Card (DS-2) | 7 | 9 | 6 | **378** | P1 |
-| Sidebar Restructure (IA-1) | 8 | 8 | 6 | **384** | P1 |
-| Simplify Dashboard Views (IA-2) | 7 | 7 | 5 | **245** | P1 |
-| Breadcrumbs (IA-3) | 6 | 10 | 9 | **540** | P1 |
-| Command Palette (IA-4) | 8 | 9 | 5 | **360** | P1 |
-| Project Detail 2-Col (PD-1) | 8 | 8 | 4 | **256** | P1 |
-| Sticky Task Filters (PD-3) | 7 | 10 | 9 | **630** | P1 |
-| Task Slide-Over (PD-4) | 8 | 9 | 5 | **360** | P1 |
-| Inline Status Updates (PD-5) | 8 | 9 | 7 | **504** | P1 |
-| Responsive Sidebar (MR-1) | 8 | 9 | 5 | **360** | P1 |
-| Responsive Task List (MR-2) | 7 | 9 | 6 | **378** | P1 |
-| Component Library (CL-1) | 6 | 9 | 4 | **216** | P2 |
-| Skeleton Loading (MP-1) | 5 | 10 | 7 | **350** | P2 |
-| Toast Feedback (MP-3) | 6 | 10 | 8 | **480** | P2 |
-| Keyboard Shortcuts (MP-4) | 6 | 9 | 7 | **378** | P2 |
-| WCAG Compliance (A11Y-1) | 7 | 10 | 5 | **350** | P2 |
-| Personalized Home (PX-1) | 8 | 5 | 3 | **120** | P3 |
-| NL Search (PX-2) | 7 | 6 | 3 | **126** | P3 |
+#### Engineering Notes
+- Create component
+- Replace existing empty states across pages
+- Estimated effort: **3 hours**
 
 ---
 
-## Execution Recommendation
+### P1-4: Enhance Onboarding Flow
+**ICE Score: 8 × 7 × 5 = 280**
 
-### Sprint 1 (Week 1-2): "Foundation"
-- DM-1: Dark mode color rules
-- DM-2: Full page dark mode audit (top 4 pages)
-- DM-3: Remove dead `dark:` classes
-- DS-1: Reconcile primary color
-- OB-2: Empty states for all pages
+#### Problem
+Current onboarding:
+1. User signs up
+2. Sees Getting Started checklist (basic)
+3. Has to figure out what to do next
+4. Many never connect a tool → never see real value → churn
 
-### Sprint 2 (Week 3-4): "Activation"
-- OB-1: First-run experience
-- IA-3: Breadcrumbs
-- PD-3: Sticky task filters
-- PD-5: Inline status updates
-- MP-3: Toast feedback system
+The "aha moment" for Vantage is: **"Wow, I can see all my projects with AI-powered health scores."**
 
-### Sprint 3 (Week 5-6): "Structure"
-- IA-1: Sidebar restructure
-- IA-2: Simplify dashboard views
-- DS-2: Standardized Card component
-- PD-1: Project detail 2-column layout
-- PD-4: Task slide-over panel
+Currently, the path to this moment is unclear.
 
-### Sprint 4 (Week 7-8): "Mobile & Polish"
-- MR-1: Responsive sidebar
-- MR-2: Responsive task list
-- MP-1: Skeleton loading states
-- MP-4: Keyboard shortcuts
-- IA-4: Command palette
+#### Solution
 
-### Ongoing: Accessibility
-- A11Y items integrated into every sprint as part of definition-of-done
+**1. Improve Getting Started Checklist:**
+Make it more prominent and action-oriented:
+
+```tsx
+// components/getting-started.tsx
+export function GettingStartedChecklist({ 
+  hasConnections, 
+  hasProjects, 
+  hasTasks,
+  onDismiss 
+}: Props) {
+  const steps = [
+    {
+      id: 'connect',
+      title: 'Connect your PM tool',
+      description: 'Import projects from Jira, Monday, or Asana',
+      completed: hasConnections,
+      action: '/connect-tools',
+      actionLabel: 'Connect now',
+      timeEstimate: '2 min',
+    },
+    {
+      id: 'explore',
+      title: 'Explore your portfolio',
+      description: 'See AI-powered health scores and risk detection',
+      completed: hasProjects,
+      action: '/projects',
+      actionLabel: 'View projects',
+    },
+    {
+      id: 'scout',
+      title: 'Ask Scout a question',
+      description: 'Try: "What\'s blocked?" or "Who\'s overloaded?"',
+      completed: false, // Track this
+      action: '/scout',
+      actionLabel: 'Ask Scout',
+    },
+  ];
+
+  const completedCount = steps.filter(s => s.completed).length;
+  const progress = (completedCount / steps.length) * 100;
+
+  // Don't show if all complete or dismissed
+  if (completedCount === steps.length) return null;
+
+  return (
+    <div className="bg-gradient-to-r from-primary-50 to-blue-50 border border-primary/20 rounded-xl p-6 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-neutral-900">
+            Get started with Vantage
+          </h3>
+          <p className="text-sm text-neutral-600">
+            {completedCount} of {steps.length} complete
+          </p>
+        </div>
+        <button onClick={onDismiss} className="text-neutral-400 hover:text-neutral-600">
+          <X size={20} />
+        </button>
+      </div>
+      
+      {/* Progress bar */}
+      <div className="w-full bg-neutral-200 rounded-full h-2 mb-6">
+        <div 
+          className="bg-primary h-2 rounded-full transition-all" 
+          style={{ width: `${progress}%` }} 
+        />
+      </div>
+      
+      {/* Steps */}
+      <div className="space-y-3">
+        {steps.map((step, index) => (
+          <div 
+            key={step.id}
+            className={`flex items-center gap-4 p-3 rounded-lg ${
+              step.completed ? 'bg-white/50' : 'bg-white'
+            }`}
+          >
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              step.completed 
+                ? 'bg-green-100 text-green-600' 
+                : 'bg-primary/10 text-primary'
+            }`}>
+              {step.completed ? <CheckCircle2 size={16} /> : <span>{index + 1}</span>}
+            </div>
+            
+            <div className="flex-1">
+              <p className={`text-sm font-medium ${step.completed ? 'text-neutral-500 line-through' : 'text-neutral-900'}`}>
+                {step.title}
+              </p>
+              <p className="text-xs text-neutral-500">{step.description}</p>
+            </div>
+            
+            {!step.completed && (
+              <Link 
+                href={step.action}
+                className="px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary-600"
+              >
+                {step.actionLabel}
+              </Link>
+            )}
+            
+            {step.timeEstimate && !step.completed && (
+              <span className="text-[10px] text-neutral-400">{step.timeEstimate}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+**2. Add Welcome Modal for First-Time Users:**
+```tsx
+// Show once on first visit
+function WelcomeModal({ onClose }: { onClose: () => void }) {
+  return (
+    <Modal>
+      <div className="text-center p-6">
+        <div className="w-16 h-16 bg-gradient-to-br from-primary to-purple-500 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <Sparkles size={28} className="text-white" />
+        </div>
+        <h2 className="text-xl font-bold text-neutral-900 mb-2">
+          Welcome to Vantage
+        </h2>
+        <p className="text-sm text-neutral-600 mb-6">
+          The AI PM assistant that watches your projects 24/7. Let's get you set up in 2 minutes.
+        </p>
+        <Link href="/connect-tools" className="btn-primary w-full mb-3">
+          Connect your first tool
+        </Link>
+        <button onClick={onClose} className="text-sm text-neutral-500 hover:text-neutral-700">
+          I'll explore first
+        </button>
+      </div>
+    </Modal>
+  );
+}
+```
+
+**3. Track Onboarding Progress:**
+```typescript
+// lib/onboarding.ts
+const ONBOARDING_STEPS = ['connect', 'explore', 'scout', 'report'] as const;
+
+export function useOnboarding() {
+  const [completed, setCompleted] = useState<string[]>([]);
+  
+  useEffect(() => {
+    const stored = localStorage.getItem('vantage-onboarding');
+    if (stored) setCompleted(JSON.parse(stored));
+  }, []);
+  
+  const markComplete = (step: string) => {
+    const updated = [...completed, step];
+    setCompleted(updated);
+    localStorage.setItem('vantage-onboarding', JSON.stringify(updated));
+  };
+  
+  return { completed, markComplete };
+}
+```
+
+#### Success Metrics
+- Time to first connection < 5 minutes (measure from signup)
+- Activation rate (signup → connect tool → view data) > 60%
+- Day 7 retention improves
+
+#### Engineering Notes
+- Enhance existing GettingStartedChecklist component
+- Add welcome modal (show once via localStorage flag)
+- Add analytics tracking for each step
+- Estimated effort: **6 hours**
+
+---
+
+### P1-5: Standardize Loading States
+**ICE Score: 6 × 8 × 8 = 384**
+
+#### Problem
+Loading states are inconsistent:
+- Some pages show spinner
+- Some show skeleton
+- Some show nothing (flash of empty → content)
+
+This creates perception of slowness and unreliability.
+
+#### Solution
+
+**1. Create Skeleton Components:**
+```tsx
+// components/ui/skeleton.tsx
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <div className={cn("animate-pulse bg-neutral-200 rounded", className)} />
+  );
+}
+
+export function CardSkeleton() {
+  return (
+    <Card>
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    </Card>
+  );
+}
+
+export function ProjectCardSkeleton() {
+  return (
+    <Card variant="interactive">
+      <div className="flex items-center justify-between mb-3">
+        <Skeleton className="h-5 w-16" />
+        <Skeleton className="h-5 w-20" />
+      </div>
+      <Skeleton className="h-6 w-3/4 mb-2" />
+      <Skeleton className="h-4 w-1/2 mb-4" />
+      <Skeleton className="h-2 w-full" />
+    </Card>
+  );
+}
+
+export function TableSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 p-3 bg-white rounded-lg">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 flex-1" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-16" />
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+**2. Use Suspense Boundaries:**
+```tsx
+import { Suspense } from 'react';
+
+// In page
+<Suspense fallback={<ProjectListSkeleton />}>
+  <ProjectList />
+</Suspense>
+```
+
+**3. Standardize Rules:**
+- Content areas: Use skeleton loaders
+- Actions (buttons): Use spinner inside button
+- Full page loads: Use skeleton matching final layout
+- Never show empty → content flash
+
+#### Success Metrics
+- Perceived performance improves (user survey)
+- Cumulative Layout Shift (CLS) < 0.1
+- Consistent loading experience across pages
+
+#### Engineering Notes
+- Create skeleton components
+- Add Suspense boundaries
+- Estimated effort: **4 hours**
+
+---
+
+## P2: Next Sprint (Important Quality of Life)
+
+### P2-1: Decompose Project Detail Page
+**ICE Score: 7 × 8 × 3 = 168**
+
+#### Problem
+`project/[id]/page.tsx` is **2,963 lines** — the largest file in the codebase. This causes:
+- Slow IDE performance
+- Difficult code reviews
+- Hard to reason about
+- Bug isolation is difficult
+- New engineers overwhelmed
+
+#### Solution
+Split into focused components:
+
+```
+/app/(app)/project/[id]/
+├── page.tsx                      (~200 lines - layout & data fetching)
+├── components/
+│   ├── project-header.tsx        (~150 lines - title, health, actions)
+│   ├── project-metrics.tsx       (~100 lines - the 5-stat grid)
+│   ├── task-table.tsx            (~400 lines - the task list with tree)
+│   ├── task-detail-drawer.tsx    (~350 lines - slide-out panel)
+│   ├── intelligence-panel.tsx    (~300 lines - AI insights section)
+│   ├── risk-analysis.tsx         (~200 lines - risk factors display)
+│   ├── scope-creep-chart.tsx     (~150 lines - scope visualization)
+│   ├── team-workload.tsx         (~200 lines - assignee breakdown)
+│   └── critical-path.tsx         (~150 lines - critical path display)
+```
+
+**Migration Strategy:**
+1. Extract components one at a time
+2. Start with the most isolated sections (metrics, charts)
+3. Test after each extraction
+4. Keep page.tsx as the orchestrator
+
+#### Success Metrics
+- No file > 500 lines
+- Faster IDE performance
+- Easier code reviews
+
+#### Engineering Notes
+- Extract in order: metrics → charts → panels → task table → detail drawer
+- Use React.memo() where appropriate
+- Estimated effort: **16 hours** (can be done incrementally)
+
+---
+
+### P2-2: Add Keyboard Navigation
+**ICE Score: 6 × 7 × 5 = 210**
+
+#### Problem
+Power users want keyboard shortcuts. Currently:
+- No Cmd+K command palette
+- No keyboard navigation in lists
+- Tab order may be inconsistent
+
+#### Solution
+
+**1. Implement Command Palette (Cmd+K):**
+```tsx
+// components/command-palette.tsx
+import { Command } from 'cmdk'; // Use cmdk library
+
+function CommandPalette() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setOpen(o => !o);
+      }
+    };
+    document.addEventListener('keydown', down);
+    return () => document.removeEventListener('keydown', down);
+  }, []);
+
+  return (
+    <Command.Dialog open={open} onOpenChange={setOpen} className="...">
+      <Command.Input placeholder="Search projects, tasks, actions..." />
+      <Command.List>
+        <Command.Group heading="Projects">
+          {/* Dynamic project list */}
+        </Command.Group>
+        <Command.Group heading="Actions">
+          <Command.Item onSelect={() => router.push('/scout')}>
+            Ask Scout...
+          </Command.Item>
+          <Command.Item onSelect={() => router.push('/connect-tools')}>
+            Connect a tool
+          </Command.Item>
+        </Command.Group>
+      </Command.List>
+    </Command.Dialog>
+  );
+}
+```
+
+**2. Add Keyboard Shortcuts:**
+- `?` — Show keyboard shortcuts help
+- `g` then `d` — Go to dashboard
+- `g` then `p` — Go to projects
+- `g` then `s` — Go to Scout
+- `j/k` — Navigate lists
+- `Enter` — Open selected item
+
+#### Success Metrics
+- Power user satisfaction (survey)
+- Keyboard shortcut usage tracked via analytics
+
+#### Engineering Notes
+- Install `cmdk` package
+- Implement incrementally
+- Estimated effort: **8 hours**
+
+---
+
+### P2-3: Responsive Table Improvements
+**ICE Score: 6 × 8 × 5 = 240**
+
+#### Problem
+Task tables have 8+ columns. On tablet they overflow, on mobile they're unusable.
+
+#### Solution
+
+**1. Hide non-essential columns on smaller screens:**
+```tsx
+// In table header
+<th className="hidden lg:table-cell">Due Date</th>
+<th className="hidden xl:table-cell">Assignee</th>
+```
+
+**2. Add horizontal scroll with sticky first column:**
+```tsx
+<div className="overflow-x-auto">
+  <table className="min-w-[800px]">
+    <thead>
+      <tr>
+        <th className="sticky left-0 bg-white z-10">Task</th>
+        {/* Other columns */}
+      </tr>
+    </thead>
+  </table>
+</div>
+```
+
+**3. Alternative card view on mobile:**
+```tsx
+{/* Desktop: table */}
+<table className="hidden md:table">...</table>
+
+{/* Mobile: card list */}
+<div className="md:hidden space-y-3">
+  {tasks.map(task => (
+    <TaskCard key={task.id} task={task} />
+  ))}
+</div>
+```
+
+#### Success Metrics
+- Tables usable on tablet/mobile
+- No horizontal scroll unless necessary
+
+#### Engineering Notes
+- Estimated effort: **6 hours**
+
+---
+
+### P2-4: Settings Page Organization
+**ICE Score: 5 × 8 × 6 = 240**
+
+#### Problem
+Settings has 6+ sub-routes in flat navigation. Users scroll to find things.
+
+#### Solution
+
+**1. Group into categories:**
+- **Account:** Profile, Notifications, Appearance
+- **Integrations:** Connections, Field Mappings, Sync Settings
+- **Security:** SSO, API Keys, Audit Log
+- **Billing:** Subscription, Usage
+
+**2. Add sidebar nav within Settings:**
+```tsx
+// /settings/layout.tsx
+function SettingsLayout({ children }) {
+  const categories = [
+    { label: 'Account', items: ['profile', 'notifications', 'appearance'] },
+    { label: 'Integrations', items: ['connections', 'field-mappings'] },
+    { label: 'Security', items: ['sso', 'api-keys', 'audit-log'] },
+    { label: 'Billing', items: ['subscription'] },
+  ];
+  
+  return (
+    <div className="flex gap-8">
+      <nav className="w-48 shrink-0">
+        {categories.map(cat => (
+          <div key={cat.label} className="mb-6">
+            <h4 className="text-xs font-semibold text-neutral-500 uppercase mb-2">
+              {cat.label}
+            </h4>
+            {cat.items.map(item => (
+              <Link key={item} href={`/settings/${item}`} className="...">
+                {item}
+              </Link>
+            ))}
+          </div>
+        ))}
+      </nav>
+      <main className="flex-1">{children}</main>
+    </div>
+  );
+}
+```
+
+#### Success Metrics
+- Time to find setting decreases
+- Settings-related support questions drop
+
+#### Engineering Notes
+- Estimated effort: **4 hours**
+
+---
+
+## P3: Backlog (Nice to Have)
+
+### P3-1: Micro-interactions & Animations
+**ICE Score: 4 × 7 × 6 = 168**
+
+Add subtle animations:
+- Card hover effects
+- Status badge color transitions
+- Health score number animations
+- Task completion celebrations
+
+### P3-2: Scout AI Visual Presence
+**ICE Score: 5 × 6 × 5 = 150**
+
+Make Scout more discoverable:
+- "Ask Scout about this" button on project detail
+- Scout indicator in The Brief
+- Consider floating Scout button (like Intercom)
+
+### P3-3: Notification System Polish
+**ICE Score: 4 × 7 × 5 = 140**
+
+Improve toasts:
+- Use a proper toast library (sonner or react-hot-toast)
+- Support action buttons ("Undo", "View")
+- Queue management for multiple toasts
+
+### P3-4: Onboarding Product Tour
+**ICE Score: 6 × 5 × 3 = 90**
+
+Implement spotlight tour:
+- Highlight key features with tooltips
+- Trigger after first connection
+- Allow skip, track completion
+
+### P3-5: Theme Customization
+**ICE Score: 3 × 5 × 4 = 60**
+
+Allow users to:
+- Choose accent color
+- Adjust information density
+- Save preferences
+
+---
+
+## Implementation Roadmap
+
+### Week 1: P0 Critical Fixes
+| Day | Item | Est. Hours |
+|-----|------|------------|
+| 1 | P0-1: Dark mode contrast fix | 2h |
+| 1 | P0-3: Primary color documentation | 0.5h |
+| 1 | P0-4: Dashboard nav simplification | 4h |
+| 2 | P0-2: Mobile navigation | 4h |
+| 2 | Testing & QA | 2h |
+
+**Week 1 Total: ~12 hours**
+
+### Week 2-3: P1 Foundation
+| Item | Est. Hours |
+|------|------------|
+| P1-1: UI component library (core) | 8h |
+| P1-2: Dark mode tinted backgrounds | 4h |
+| P1-3: Empty states | 3h |
+| P1-4: Onboarding improvements | 6h |
+| P1-5: Loading state standardization | 4h |
+| Migration & testing | 8h |
+
+**Weeks 2-3 Total: ~33 hours**
+
+### Week 4+: P2 Quality of Life
+Work through P2 items based on capacity, prioritizing decomposition and keyboard navigation.
+
+---
+
+## Success Metrics Summary
+
+| Metric | Current (Est.) | Target | Measurement |
+|--------|----------------|--------|-------------|
+| Activation Rate | ~30% | 60%+ | Signup → connect → view data in 24h |
+| Dark Mode Usage | Unknown | 30%+ | Sessions staying in dark mode |
+| Mobile Sessions | ~0% | 15%+ | Sessions from mobile devices |
+| Time to Value | Unknown | < 5 min | Signup to first real insight |
+| Support Tickets (UX) | Unknown | -50% | Reduce confusion-related tickets |
+| NPS | Unknown | > 40 | Survey after 7 days |
 
 ---
 
 ## Open Questions for CEO
 
-1. **Primary color:** Confirm we're keeping Blue `#0066CC` over the spec'd Indigo `#6366f1`?
-2. **Mobile native app:** Is a native mobile app on the roadmap, or is responsive web sufficient for now?
-3. **Enterprise tier features:** Are SSO/Audit/API keys behind a paywall or available to all users? This affects the settings IA.
-4. **Scout investment:** Should we invest more in Scout (NL search, proactive suggestions) or focus on core UX first?
-5. **User research:** Do we have any session recordings or heatmaps? I'd love to validate these recommendations with real user data.
+1. **Mobile priority:** Is mobile web sufficient, or is native app on roadmap?
+2. **Analytics:** What event tracking is in place? Do we need to add Mixpanel/Amplitude?
+3. **User research:** Can we do 5 user interviews to validate these priorities?
+4. **Design resources:** Do we have Figma mockups, or should engineering make final design calls?
 
 ---
 
-*This document is a living spec. I'll update it as we learn more from users and as engineering provides implementation feedback on feasibility and effort estimates.*
+## Appendix: Full Issue List by ICE Score
 
-— Jeff
+| Rank | ID | Issue | I | C | E | ICE |
+|------|-----|-------|---|---|---|-----|
+| 1 | P0-1 | Dark mode text contrast | 9 | 10 | 9 | 810 |
+| 2 | P0-3 | Primary color inconsistency | 7 | 10 | 10 | 700 |
+| 3 | P0-2 | Mobile navigation missing | 9 | 9 | 7 | 567 |
+| 4 | P1-2 | Dark mode tinted backgrounds | 8 | 9 | 7 | 504 |
+| 5 | P1-3 | Empty state improvements | 7 | 9 | 8 | 504 |
+| 6 | P0-4 | Dashboard info architecture | 8 | 8 | 6 | 384 |
+| 7 | P1-5 | Loading state standardization | 6 | 8 | 8 | 384 |
+| 8 | P1-1 | Shared UI component library | 8 | 9 | 5 | 360 |
+| 9 | P1-4 | Onboarding flow | 8 | 7 | 5 | 280 |
+| 10 | P2-2 | Keyboard navigation | 6 | 7 | 5 | 210 |
+| 11 | P2-3 | Responsive tables | 6 | 8 | 5 | 240 |
+| 12 | P2-4 | Settings organization | 5 | 8 | 6 | 240 |
+| 13 | P2-1 | Project detail decomposition | 7 | 8 | 3 | 168 |
+| 14 | P3-1 | Micro-interactions | 4 | 7 | 6 | 168 |
+| 15 | P3-2 | Scout AI visibility | 5 | 6 | 5 | 150 |
+| 16 | P3-3 | Notification polish | 4 | 7 | 5 | 140 |
+
+---
+
+*This PRD is specific enough to build from. Ship fast, measure, iterate.*
+
+**— Jeff, SVP Product**

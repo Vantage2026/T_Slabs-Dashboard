@@ -31,18 +31,12 @@ All colors are defined as CSS custom properties for consistency and theming.
 
 ```css
 :root {
-  /* Primary Brand */
-  --color-primary: #6366f1;        /* Indigo-500 - Main brand action color */
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-300: #a5b4fc;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
+  /* Primary Brand — Vantage Blue (NOT Indigo; updated Feb 2026) */
+  --color-primary: #0066CC;        /* Vantage Blue - Main brand action color */
+  --color-primary-50: #E6F2FF;
+  --color-primary-100: #CCE5FF;
+  --color-primary-600: #0052A3;
+  --color-primary-700: #003D7A;
 
   /* Neutral (Gray Scale) */
   --color-neutral-50: #fafafa;
