@@ -22,6 +22,17 @@ Implemented first-class `TaskDependency` model and sync pipeline:
 - **Skipped:** Monday.com and Asana dependency extraction (user said don't do)
 - **Remaining:** Callers of `computeCriticalPath` need to pass resolved deps from DB; gantt chart dependency arrows
 
+### Cost Intelligence MVP+ — IMPLEMENTED (first slice)
+- Added budget + cost + scenario data models in Prisma (`ProjectBudget`, `ProjectCostEntry`, `CostScenario`)
+- Added report/API pipeline for portfolio and per-project cost rollups
+- Added new report UI at `/reports/cost-intelligence` with:
+  - Budget vs actual + forecast
+  - Clickable project drill-down
+  - Budget controls
+  - Manual cost entry
+  - What-if scenario modeling and save
+- Wired report entry points in `reports/page.tsx`
+
 ### Document History (build order so far)
 1. Task Table Redesign (jeff → emmy review → implemented)
 2. Reporting Suite (jeff → emmy review → implemented)
