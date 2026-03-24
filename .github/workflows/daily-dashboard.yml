@@ -1,0 +1,108 @@
+name: Boss daily tracking dashboard
+
+on:
+  schedule:
+    # Every hour UTC; gate keeps only 8 AM America/New_York
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Run now (ignore 8 AM Eastern gate)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: boss-dashboard-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.gate.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: boss-dashboard-daily/package-lock.json
+
+      - name: Install
+        working-directory: boss-dashboard-daily
+        run: npm ci
+
+      - name: Gate — 8 AM Eastern or manual force
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.force }}" = "true" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Gate: forced run"
+            exit 0
+          fi
+          H=$(TZ=America/New_York date +%H)
+          echo "hour_ny=$H" >> "$GITHUB_OUTPUT"
+          if [ "$H" != "08" ]; then
+            echo "Not 8 AM America/New_York — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run dashboard + SMS
+        if: steps.gate.outputs.skip == 'false'
+        working-directory: boss-dashboard-daily
+        env:
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+          FEDEX_API_KEY: ${{ secrets.FEDEX_API_KEY }}
+          FEDEX_SECRET_KEY: ${{ secrets.FEDEX_SECRET_KEY }}
+          FEDEX_USE_SANDBOX: ${{ secrets.FEDEX_USE_SANDBOX }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM_E164: ${{ secrets.TWILIO_FROM_E164 }}
+          BOSS_PHONE_E164: ${{ secrets.BOSS_PHONE_E164 }}
+          SMS_INTRO: ${{ secrets.SMS_INTRO }}
+          SHEET_KAI_ID: ${{ secrets.SHEET_KAI_ID }}
+          SHEET_KAI_GID: ${{ secrets.SHEET_KAI_GID }}
+          SHEET_MOMO_ID: ${{ secrets.SHEET_MOMO_ID }}
+          SHEET_MOMO_GID: ${{ secrets.SHEET_MOMO_GID }}
+          # Public URL after deploy (GitHub Pages project site). Override with secret if you use a custom domain.
+          DASHBOARD_PUBLIC_URL: ${{ secrets.DASHBOARD_PUBLIC_URL }}
+        run: |
+          if [ -z "${DASHBOARD_PUBLIC_URL:-}" ]; then
+            export DASHBOARD_PUBLIC_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/report.html"
+          fi
+          npm start
+
+      - name: Upload Pages artifact
+        if: steps.gate.outputs.skip == 'false'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: boss-dashboard-daily/dist
+
+      - name: Upload report artifact
+        if: steps.gate.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: report
+          path: boss-dashboard-daily/dist/report.html
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
