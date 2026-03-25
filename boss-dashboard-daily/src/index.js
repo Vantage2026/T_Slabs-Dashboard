@@ -193,7 +193,8 @@ async function main() {
 
   const smtpHost = (process.env.SMTP_HOST || "").trim();
   const smtpUser = (process.env.SMTP_USER || "").trim();
-  const smtpPass = (process.env.SMTP_PASS || "").trim();
+  /** Trim: pasted app passwords often include a trailing newline and Gmail then rejects login. */
+  const smtpPass = String(process.env.SMTP_PASS || "").trim();
   const emailToRaw = (process.env.EMAIL_TO || "").trim();
   const emailTos = parseAddressList(emailToRaw);
   const fromRaw = (process.env.EMAIL_FROM || smtpUser || "").trim();
@@ -229,7 +230,7 @@ async function main() {
 
       // eslint-disable-next-line no-console
       console.log("[notify] Sending mail To:", emailTos.map(maskEmail).join(", "));
-      await sendSmtpMail({
+      const mailInfo = await sendSmtpMail({
         host: smtpHost,
         port: smtpPort,
         secure: smtpSecure,
@@ -243,7 +244,9 @@ async function main() {
         html: emailHtml,
       });
       // eslint-disable-next-line no-console
-      console.log(`Email sent to ${emailTos.length} address(es) via SMTP (${smtpHost}).`);
+      console.log(
+        `[notify] SMTP accepted message to ${emailTos.length} recipient(s). messageId=${mailInfo?.messageId || "(none)"}`
+      );
 
       /** Gmail SMTP usually does not add a row in “Sent”; copy via IMAP APPEND unless disabled. */
       const appendRaw = (process.env.EMAIL_APPEND_SENT_IMAP || "").trim().toLowerCase();
@@ -267,7 +270,7 @@ async function main() {
           });
           const imapHost = (process.env.IMAP_HOST || "imap.gmail.com").trim();
           const imapUser = (process.env.IMAP_USER || smtpUser).trim();
-          const imapPass = (process.env.IMAP_PASS || smtpPass).trim();
+          const imapPass = String(process.env.IMAP_PASS || smtpPass).trim();
           const sentBox = (process.env.IMAP_SENT_MAILBOX || "[Gmail]/Sent Mail").trim();
           await appendToImapMailbox({
             host: imapHost,

@@ -21,10 +21,13 @@ async function sendSmtpMail({
   text,
   html,
 }) {
+  const p = smtpPortNumber(port);
+  const useTls = secure === true || secure === "true";
   const transporter = nodemailer.createTransport({
     host,
-    port: smtpPortNumber(port),
-    secure: secure === true || secure === "true",
+    port: p,
+    secure: useTls,
+    requireTLS: !useTls && p === 587,
     auth: user && pass ? { user, pass } : undefined,
     tls: { rejectUnauthorized: true },
   });

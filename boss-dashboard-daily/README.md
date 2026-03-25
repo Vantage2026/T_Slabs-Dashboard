@@ -112,6 +112,8 @@ Generating a **PNG** for MMS would need headless Chrome or an image API; this pa
 3. **Actions log** — Expand **Run dashboard + email / SMS**. Look for `[notify] Email:` — it shows whether secrets are present and a **masked** recipient list. `Email skipped` lists what’s missing.
 4. **Gmail** — Use an **app password**, not your normal password. If SMTP fails with login / 535 errors, Gmail may be blocking **GitHub’s IP**; try another SMTP provider (e.g. SendGrid) or send from a different host.
 5. **Spam / Promotions** — Check those folders for the subject line (default **Daily card shipment brief**).
+6. **App password newline** — Re-paste `SMTP_PASS` in GitHub secrets with **no trailing line break** (a stray newline makes Gmail reject login). The app now **trims** the password; re-save the secret if it was added earlier.
+7. **Proof in the log** — After a successful send you should see **`[notify] SMTP accepted message`** and a **`messageId=`** line. If you only see **`Email skipped`**, fix the listed secrets. If the job **fails** on **`SMTP verify failed`**, Gmail is rejecting auth or blocking GitHub’s IP.
 
 ## Schedule: every day 8:00 AM Eastern
 
