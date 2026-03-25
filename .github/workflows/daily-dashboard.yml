@@ -31,9 +31,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: boss-dashboard-daily/package-lock.json
+          node-version: "22"
 
       - name: Install
         working-directory: boss-dashboard-daily
@@ -56,12 +54,24 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # WIF: no JSON key. See https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        id: auth
+        if: steps.gate.outputs.skip == 'false'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          create_credentials_file: true
+
       - name: Run dashboard + SMS
         if: steps.gate.outputs.skip == 'false'
         working-directory: boss-dashboard-daily
         env:
-          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
-          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+          # Pass file path explicitly so node/googleapis always sees ADC after WIF (see auth step output).
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+          # Set secret SKIP_FEDEX_API=1 to use sheet + public fedex.com links only (no FedEx developer API).
+          SKIP_FEDEX_API: ${{ secrets.SKIP_FEDEX_API }}
           FEDEX_API_KEY: ${{ secrets.FEDEX_API_KEY }}
           FEDEX_SECRET_KEY: ${{ secrets.FEDEX_SECRET_KEY }}
           FEDEX_USE_SANDBOX: ${{ secrets.FEDEX_USE_SANDBOX }}
