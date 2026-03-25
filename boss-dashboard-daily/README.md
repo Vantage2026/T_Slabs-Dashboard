@@ -38,7 +38,7 @@ The workflow **`.github/workflows/daily-dashboard.yml`** (repo root):
 | `FEDEX_API_KEY` | FedEx API key (not needed if `SKIP_FEDEX_API=1`) |
 | `FEDEX_SECRET_KEY` | FedEx secret (not needed if `SKIP_FEDEX_API=1`) |
 | `SMTP_HOST` | e.g. `smtp.gmail.com` — **optional**; omit all `SMTP_*` / `EMAIL_*` to skip email |
-| `SMTP_PORT` | Usually `587` (or `465` with `SMTP_SECURE=1`) |
+| `SMTP_PORT` | **Optional** — omit on GitHub if the UI complains; the app defaults to **587**. Use **465** only with `SMTP_SECURE=1` (implicit TLS). |
 | `SMTP_SECURE` | Set `1` or `true` only for implicit TLS (typical on port 465) |
 | `SMTP_USER` | SMTP login (often your Gmail address) |
 | `SMTP_PASS` | App password (Gmail: 2FA → App passwords), not your normal password |

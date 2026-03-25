@@ -11,7 +11,7 @@ const { trackOne } = require("./fedex");
 const { fedexPublicTrackUrl, isSkipFedExApi } = require("./tracking");
 const { renderDashboardHtml, escapeHtml } = require("./render-html");
 const { sendTwilioSmsFetch } = require("./sms");
-const { sendSmtpMail, buildRawMime } = require("./email-smtp");
+const { sendSmtpMail, buildRawMime, smtpPortNumber } = require("./email-smtp");
 const { appendToImapMailbox } = require("./email-imap-sent");
 
 const SHEET_KAI = process.env.SHEET_KAI_ID || "15oaXW2GEyMl7ES5AV_nJIdx7wG0nmMgoRjiEzyaax1A";
@@ -211,7 +211,7 @@ async function main() {
       // eslint-disable-next-line no-console
       console.log("Email skipped — DASHBOARD_PUBLIC_URL is empty.");
     } else {
-      const smtpPort = process.env.SMTP_PORT || "587";
+      const smtpPort = smtpPortNumber(process.env.SMTP_PORT);
       const smtpSecure = process.env.SMTP_SECURE === "1" || process.env.SMTP_SECURE === "true";
 
       if (/gmail\.com/i.test(smtpHost) && emailFromHeader.includes(",")) {

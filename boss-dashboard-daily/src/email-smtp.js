@@ -1,5 +1,10 @@
 const nodemailer = require("nodemailer");
 
+function smtpPortNumber(port) {
+  const n = Number.parseInt(String(port ?? "").trim(), 10);
+  return Number.isFinite(n) && n > 0 ? n : 587;
+}
+
 /**
  * Send mail via SMTP (Gmail, Outlook, etc.). No per-message fee beyond your mailbox/provider.
  */
@@ -18,7 +23,7 @@ async function sendSmtpMail({
 }) {
   const transporter = nodemailer.createTransport({
     host,
-    port: Number(port) || 587,
+    port: smtpPortNumber(port),
     secure: secure === true || secure === "true",
     auth: user && pass ? { user, pass } : undefined,
     tls: { rejectUnauthorized: true },
@@ -75,4 +80,4 @@ function buildRawMime({ from, to, bcc, subject, text, html, date }) {
   });
 }
 
-module.exports = { sendSmtpMail, buildRawMime };
+module.exports = { sendSmtpMail, buildRawMime, smtpPortNumber };
