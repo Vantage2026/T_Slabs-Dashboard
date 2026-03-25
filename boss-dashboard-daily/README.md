@@ -105,6 +105,14 @@ Set **`DASHBOARD_PUBLIC_URL`** in `.env` (or as a repo secret) to any public URL
 
 Generating a **PNG** for MMS would need headless Chrome or an image API; this package does not include that.
 
+## Email troubleshooting
+
+1. **Workflow skipped** — The job only runs at **8:00 AM America/New_York** unless you use **Actions → Run workflow → force**. Open the run: if you see “Not 8 AM … skipping”, no email is attempted.
+2. **`EMAIL_TO` required** — The sender mailbox (`SMTP_USER`) does **not** automatically receive the brief. Add **your** address (and anyone else’s) to the **`EMAIL_TO`** repository secret, comma-separated.
+3. **Actions log** — Expand **Run dashboard + email / SMS**. Look for `[notify] Email:` — it shows whether secrets are present and a **masked** recipient list. `Email skipped` lists what’s missing.
+4. **Gmail** — Use an **app password**, not your normal password. If SMTP fails with login / 535 errors, Gmail may be blocking **GitHub’s IP**; try another SMTP provider (e.g. SendGrid) or send from a different host.
+5. **Spam / Promotions** — Check those folders for the subject line (default **Daily card shipment brief**).
+
 ## Schedule: every day 8:00 AM Eastern
 
 The workflow uses an **hourly cron** plus a **timezone gate** so only the **8 AM America/New_York** run does work (see workflow file). **DST** is handled because the gate uses `TZ=America/New_York`.

@@ -21,15 +21,38 @@ async function sendSmtpMail({
     port: Number(port) || 587,
     secure: secure === true || secure === "true",
     auth: user && pass ? { user, pass } : undefined,
+    tls: { rejectUnauthorized: true },
   });
-  await transporter.sendMail({
-    from,
-    to,
-    bcc,
-    subject,
-    text,
-    html,
-  });
+  try {
+    await transporter.verify();
+  } catch (e) {
+    const hint =
+      /gmail\.com/i.test(host) && /Invalid login|535|534/i.test(String(e.message || e))
+        ? " For Gmail use an app password (2FA), not your normal password; Actions IPs are sometimes blocked—try SendGrid SMTP or another provider if this persists."
+        : "";
+    const err = new Error(`SMTP verify failed: ${e.message || e}.${hint}`);
+    err.cause = e;
+    throw err;
+  }
+  try {
+    const info = await transporter.sendMail({
+      from,
+      to,
+      bcc,
+      subject,
+      text,
+      html,
+    });
+    return info;
+  } catch (e) {
+    const hint =
+      /gmail\.com/i.test(host) && /535|534|not accepted|Application-specific/i.test(String(e.message || e))
+        ? " Check Gmail app password and that From matches the mailbox or a verified send-as address."
+        : "";
+    const err = new Error(`SMTP send failed: ${e.message || e}.${hint}`);
+    err.cause = e;
+    throw err;
+  }
 }
 
 /** RFC822 bytes — use for IMAP append to Sent (Gmail SMTP often does not file Sent). */

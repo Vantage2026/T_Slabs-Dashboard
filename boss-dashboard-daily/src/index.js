@@ -102,6 +102,14 @@ function parseAddressList(raw) {
     .filter(Boolean);
 }
 
+/** Safe for logs (not a security guarantee). */
+function maskEmail(addr) {
+  const s = String(addr).trim();
+  const at = s.indexOf("@");
+  if (at < 1) return "(invalid)";
+  return `${s[0]}…@${s.slice(at + 1)}`;
+}
+
 async function main() {
   const { dryRun, reportOnly } = parseArgs();
   /** Dry-run: no FedEx. SKIP_FEDEX_API=1: use sheet + public FedEx link only (no developer API). */
@@ -184,6 +192,11 @@ async function main() {
   const emailFromHeader = emailFromList.join(", ");
 
   const smtpReady = smtpHost && smtpUser && smtpPass && emailFromList.length > 0 && emailTos.length > 0;
+  // eslint-disable-next-line no-console
+  console.log(
+    `[notify] Email: SMTP_HOST=${smtpHost || "(unset)"} SMTP_USER=${smtpUser ? maskEmail(smtpUser) : "(unset)"} SMTP_PASS=${smtpPass ? "set" : "(unset)"} EMAIL_TO count=${emailTos.length}`
+  );
+
   if (smtpReady) {
     if (!dashboardUrl) {
       // eslint-disable-next-line no-console
@@ -192,12 +205,21 @@ async function main() {
       const smtpPort = process.env.SMTP_PORT || "587";
       const smtpSecure = process.env.SMTP_SECURE === "1" || process.env.SMTP_SECURE === "true";
 
+      if (/gmail\.com/i.test(smtpHost) && emailFromHeader.includes(",")) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[notify] Gmail SMTP: multiple From addresses may be rejected unless every address is a verified “Send mail as” alias. Consider a single EMAIL_FROM."
+        );
+      }
+
       const bccExtra = parseAddressList(process.env.EMAIL_BCC || "");
       const bccSelf = /^1|true|yes$/i.test(String(process.env.EMAIL_BCC_SELF || "").trim());
       const bccSet = new Set(bccExtra);
       if (bccSelf && smtpUser) bccSet.add(smtpUser);
       const bccHeader = bccSet.size > 0 ? [...bccSet].join(", ") : undefined;
 
+      // eslint-disable-next-line no-console
+      console.log("[notify] Sending mail To:", emailTos.map(maskEmail).join(", "));
       await sendSmtpMail({
         host: smtpHost,
         port: smtpPort,
@@ -262,9 +284,11 @@ async function main() {
     if (!smtpUser) need.push("SMTP_USER");
     if (!smtpPass) need.push("SMTP_PASS");
     if (emailFromList.length === 0) need.push("EMAIL_FROM or SMTP_USER (comma-separated allowed)");
-    if (emailTos.length === 0) need.push("EMAIL_TO");
+    if (emailTos.length === 0) need.push("EMAIL_TO (repo secret: comma-separated recipient addresses)");
     // eslint-disable-next-line no-console
-    console.log(`Email skipped — set ${need.join(", ")} for free SMTP (e.g. Gmail app password).`);
+    console.log(
+      `Email skipped — add GitHub Actions repository secrets: ${need.join(", ")}. Your address must appear in EMAIL_TO to receive the brief.`
+    );
   }
 
   const twilioKeys = [
