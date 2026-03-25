@@ -1,6 +1,6 @@
 # Boss daily tracking dashboard
 
-Automated **FedEx** status + **card counts** from two **Google Sheets** tracking tabs, with a **mobile-friendly HTML** report and optional **Twilio SMS** to your boss.
+Automated **FedEx** status + **card counts** from two **Google Sheets** tracking tabs, with a **mobile-friendly HTML** report and optional **email (SMTP, typically free)** and/or **Twilio SMS**.
 
 ## What it does
 
@@ -11,7 +11,7 @@ Automated **FedEx** status + **card counts** from two **Google Sheets** tracking
    - **FedEx Track API** (optional): lines like `889755754940 — On the way, Memphis, TN`, or  
    - **No API** (`SKIP_FEDEX_API=1`): uses **tracking # + card count from the sheet** and a **public [FedEx tracking](https://www.fedex.com/fedextrack/)** link so your boss taps through for live status (same info as the website, no developer account).
 5. Writes `dist/report.html`, `dist/index.html` (redirect), and `dist/.nojekyll` for static hosting (dark, readable on phones).
-6. Sends a **short SMS** (intro + **dashboard URL** only; phones linkify the URL). Open the page for full status, **clickable tracking numbers**, and **Open on FedEx** buttons. Requires **`DASHBOARD_PUBLIC_URL`** (CI sets a default Pages URL).
+6. Sends a **brief email** (HTML + plain text: intro + **dashboard link**) via **SMTP** when `SMTP_*` / `EMAIL_TO` are set — e.g. **Gmail + app password** (no per-message fee). Optionally still sends the same intro + URL by **SMS** if Twilio secrets are set. **`DASHBOARD_PUBLIC_URL`** is required for the link body (CI sets a default Pages URL).
 
 ## GitHub Actions + Pages (recommended)
 
@@ -19,9 +19,9 @@ The workflow **`.github/workflows/daily-dashboard.yml`** (repo root):
 
 1. Runs **every hour** and only executes the job at **8:00 AM America/New_York** (or when you **Run workflow** with **force** checked).
 2. **Authenticates to Google with Workload Identity Federation** (OIDC) — **no service account JSON key** in GitHub. See [Configure Workload Identity Federation with deployment pipelines](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines) and [GitHub’s OIDC + Google Cloud](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-google-cloud-platform).
-3. Runs `npm start` in `boss-dashboard-daily/` with your **repository secrets** (FedEx + Twilio match `.env`; Google uses WIF + SA email only).
+3. Runs `npm start` in `boss-dashboard-daily/` with your **repository secrets** (see table; Google uses WIF + SA email only).
 4. If `DASHBOARD_PUBLIC_URL` is **not** set as a secret, it defaults to  
-   `https://<owner>.github.io/<repo>/report.html` so the SMS includes the live dashboard link after deploy.
+   `https://<owner>.github.io/<repo>/report.html` so email/SMS bodies include the live dashboard link after deploy.
 5. Publishes **`boss-dashboard-daily/dist/`** to **GitHub Pages** (`upload-pages-artifact` + `deploy-pages`).
 
 **One-time in GitHub:** **Settings → Pages → Build and deployment → Source: GitHub Actions** (not “Deploy from a branch”). The first deploy may ask you to approve the `github-pages` environment.
@@ -37,12 +37,22 @@ The workflow **`.github/workflows/daily-dashboard.yml`** (repo root):
 | `SKIP_FEDEX_API` | Set to `1` to **skip** FedEx developer API; uses public tracking links only (omit `FEDEX_*` secrets) |
 | `FEDEX_API_KEY` | FedEx API key (not needed if `SKIP_FEDEX_API=1`) |
 | `FEDEX_SECRET_KEY` | FedEx secret (not needed if `SKIP_FEDEX_API=1`) |
-| `TWILIO_ACCOUNT_SID` | Twilio |
+| `SMTP_HOST` | e.g. `smtp.gmail.com` — **optional**; omit all `SMTP_*` / `EMAIL_*` to skip email |
+| `SMTP_PORT` | Usually `587` (or `465` with `SMTP_SECURE=1`) |
+| `SMTP_SECURE` | Set `1` or `true` only for implicit TLS (typical on port 465) |
+| `SMTP_USER` | SMTP login (often your Gmail address) |
+| `SMTP_PASS` | App password (Gmail: 2FA → App passwords), not your normal password |
+| `EMAIL_TO` | Comma-separated recipient addresses |
+| `EMAIL_FROM` | Optional; defaults to `SMTP_USER` |
+| `EMAIL_SUBJECT` | Optional; default `Daily card shipment brief` |
+| `TWILIO_ACCOUNT_SID` | **Optional** Twilio (paid SMS) |
 | `TWILIO_AUTH_TOKEN` | Twilio |
 | `TWILIO_FROM_E164` | Your Twilio number, e.g. `+1...` |
-| `BOSS_PHONE_E164` | Recipient(s), E.164, e.g. `+1...` — comma-separated for multiple |
+| `BOSS_PHONE_E164` | Recipient(s), E.164 — comma-separated |
 
 Optional: `FEDEX_USE_SANDBOX` (API mode only), `SMS_INTRO`, `SHEET_*`, `DASHBOARD_PUBLIC_URL` (override Pages URL).
+
+**Gmail from Actions:** Create an **app password** (Google Account → Security → 2-Step Verification → App passwords). If Gmail blocks datacenter IPs, use your provider’s SMTP (e.g. SendGrid) instead.
 
 **Local development** can still use **`GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_PRIVATE_KEY`** in `.env` (or OAuth) — no WIF needed on your Mac.
 

@@ -70,7 +70,7 @@ jobs:
           # Default true: writes GOOGLE_APPLICATION_CREDENTIALS (+ GOOGLE_GHA_CREDS_PATH) to GITHUB_ENV for later steps.
           export_environment_variables: true
 
-      - name: Run dashboard + SMS
+      - name: Run dashboard + email / SMS
         if: steps.gate.outputs.skip == 'false'
         working-directory: boss-dashboard-daily
         env:
@@ -86,6 +86,15 @@ jobs:
           TWILIO_FROM_E164: ${{ secrets.TWILIO_FROM_E164 }}
           BOSS_PHONE_E164: ${{ secrets.BOSS_PHONE_E164 }}
           SMS_INTRO: ${{ secrets.SMS_INTRO }}
+          # Optional free notifications via SMTP (e.g. Gmail app password). Omit Twilio secrets to use email only.
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_SUBJECT: ${{ secrets.EMAIL_SUBJECT }}
           SHEET_KAI_ID: ${{ secrets.SHEET_KAI_ID }}
           SHEET_KAI_GID: ${{ secrets.SHEET_KAI_GID }}
           SHEET_MOMO_ID: ${{ secrets.SHEET_MOMO_ID }}
