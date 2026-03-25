@@ -231,24 +231,37 @@ async function main() {
   } else if (!dashboardUrl) {
     // eslint-disable-next-line no-console
     console.log("Email skipped — DASHBOARD_PUBLIC_URL is empty.");
-  } else if (resendReady) {
-    // eslint-disable-next-line no-console
-    console.log(
-      "[notify] Using Resend API (HTTPS). Gmail SMTP from GitHub IPs is often blocked; Resend usually works without app passwords."
-    );
-    // eslint-disable-next-line no-console
-    console.log("[notify] Resend To:", emailTos.map(maskEmail).join(", "));
-    const resendOut = await sendResendEmail({
-      apiKey: resendKey,
-      from: resendFrom,
-      toAddresses: emailTos,
-      subject: emailSubject,
-      text: notifyPlain,
-      html: emailHtml,
-    });
-    // eslint-disable-next-line no-console
-    console.log(`[notify] Resend accepted. id=${resendOut?.id ?? JSON.stringify(resendOut).slice(0, 120)}`);
-  } else if (smtpReady) {
+  } else {
+    let sentViaResend = false;
+    if (resendReady) {
+      // eslint-disable-next-line no-console
+      console.log(
+        "[notify] Using Resend API (HTTPS). For multiple recipients without a verified domain, Resend may 403 — we fall back to SMTP if configured."
+      );
+      // eslint-disable-next-line no-console
+      console.log("[notify] Resend To:", emailTos.map(maskEmail).join(", "));
+      try {
+        const resendOut = await sendResendEmail({
+          apiKey: resendKey,
+          from: resendFrom,
+          toAddresses: emailTos,
+          subject: emailSubject,
+          text: notifyPlain,
+          html: emailHtml,
+        });
+        sentViaResend = true;
+        // eslint-disable-next-line no-console
+        console.log(`[notify] Resend accepted. id=${resendOut?.id ?? JSON.stringify(resendOut).slice(0, 120)}`);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("[notify] Resend failed:", e.message || e);
+        if (!smtpReady) throw e;
+        // eslint-disable-next-line no-console
+        console.log("[notify] Falling back to SMTP for all recipients…");
+      }
+    }
+
+    if (!sentViaResend && smtpReady) {
     const smtpPort = smtpPortNumber(process.env.SMTP_PORT);
       const smtpSecure = process.env.SMTP_SECURE === "1" || process.env.SMTP_SECURE === "true";
 
@@ -326,11 +339,12 @@ async function main() {
           );
         }
       }
-  } else {
+    } else if (!sentViaResend && !resendReady && !smtpReady) {
     // eslint-disable-next-line no-console
     console.log(
       "Email skipped — add repository secret RESEND_API_KEY (Resend.com, free tier) or SMTP_HOST + SMTP_USER + SMTP_PASS + From (EMAIL_FROM or SMTP_USER)."
     );
+    }
   }
 
   const twilioKeys = [

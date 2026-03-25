@@ -59,7 +59,7 @@ The workflow **`.github/workflows/daily-dashboard.yml`** (repo root):
 
 Optional: `FEDEX_USE_SANDBOX` (API mode only), `SMS_INTRO`, `SHEET_*`, `DASHBOARD_PUBLIC_URL` (override Pages URL), `REPORT_RECENT_DAYS` (default **14**; use `0` for all rows), `REPORT_TIMEZONE` (default `America/New_York`, used for the date window).
 
-**Email from GitHub Actions (recommended):** Add **`RESEND_API_KEY`** from [Resend](https://resend.com) (free tier). HTTPS API avoids **Gmail SMTP blocking** datacenter IPs. Set **`EMAIL_TO`** as usual. Optional **`RESEND_FROM`** (default `T Slabs daily brief <onboarding@resend.dev>`); for multiple recipients or custom branding, verify a domain in Resend and set `RESEND_FROM` to an address on that domain. If **`RESEND_API_KEY`** is set, Resend is used instead of SMTP.
+**Email from GitHub Actions (recommended):** Add **`RESEND_API_KEY`** from [Resend](https://resend.com). With the default **`onboarding@resend.dev`** sender, Resend only allows **test sends to your own signup email** until you [verify a domain](https://resend.com/domains) and set **`RESEND_FROM`** to an address on that domain—then you can mail **multiple `EMAIL_TO` addresses**. If Resend returns **403** (e.g. multiple recipients without a domain), the workflow **falls back to SMTP** when **`SMTP_*`** secrets are also set. If **`RESEND_API_KEY`** is set and Resend succeeds, SMTP is skipped.
 
 **Gmail SMTP (optional):** App password on `SMTP_USER` / `SMTP_PASS`; **enable IMAP** if you want the IMAP Sent copy. Omit **`RESEND_API_KEY`** to use SMTP only.
 
