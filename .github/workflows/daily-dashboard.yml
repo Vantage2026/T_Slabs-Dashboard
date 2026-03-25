@@ -55,6 +55,10 @@ jobs:
           fi
 
       # WIF: no JSON key. See https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines
+      #
+      # Secret GOOGLE_WORKLOAD_IDENTITY_PROVIDER must be the FULL provider resource name (STS audience), e.g.
+      #   projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID
+      # Not: pool name only, numeric ID only, or a URL. Copy from GCP → IAM → Workload Identity Federation → pool → provider.
       - name: Authenticate to Google Cloud (Workload Identity Federation)
         id: auth
         if: steps.gate.outputs.skip == 'false'
