@@ -52,7 +52,7 @@ The workflow **`.github/workflows/daily-dashboard.yml`** (repo root):
 
 Optional: `FEDEX_USE_SANDBOX` (API mode only), `SMS_INTRO`, `SHEET_*`, `DASHBOARD_PUBLIC_URL` (override Pages URL).
 
-**Gmail from Actions:** Create an **app password** (Google Account → Security → 2-Step Verification → App passwords). If Gmail blocks datacenter IPs, use your provider’s SMTP (e.g. SendGrid) instead.
+**Gmail from Actions:** Use the **`tslabsdailybrief@gmail.com`** mailbox (or any Gmail) with an **app password** (Google Account → Security → 2-Step Verification → App passwords). Set `SMTP_USER` / `EMAIL_FROM` to that address and `SMTP_PASS` to the app password. If Gmail blocks datacenter IPs, use your provider’s SMTP (e.g. SendGrid) instead.
 
 **Local development** can still use **`GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_PRIVATE_KEY`** in `.env` (or OAuth) — no WIF needed on your Mac.
 
