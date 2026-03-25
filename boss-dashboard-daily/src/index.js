@@ -8,6 +8,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { loadTrackingRows } = require("./sheets");
 const { trackOne } = require("./fedex");
+const { fedexPublicTrackUrl, isSkipFedExApi } = require("./tracking");
 const { renderDashboardHtml, buildSmsSummary } = require("./render-html");
 const { sendTwilioSmsFetch } = require("./sms");
 
@@ -22,7 +23,7 @@ function parseArgs() {
   return { dryRun, reportOnly };
 }
 
-async function buildItems(rows, { skipFedEx }) {
+async function buildItems(rows, { skipFedEx, linkOnly }) {
   const items = [];
   for (const row of rows) {
     if (row.delivered) {
@@ -45,6 +46,20 @@ async function buildItems(rows, { skipFedEx }) {
         tracking: row.tracking,
         delivered: false,
         statusLine: `${row.tracking} — (FedEx not queried — dry run)`,
+      });
+      continue;
+    }
+
+    if (linkOnly) {
+      const url = fedexPublicTrackUrl(row.tracking);
+      items.push({
+        sourceLabel: row.sourceLabel,
+        date: row.date,
+        cards: row.cards,
+        tracking: row.tracking,
+        delivered: false,
+        statusLine: `Open FedEx for live status: ${url}`,
+        trackUrl: url,
       });
       continue;
     }
@@ -75,8 +90,9 @@ async function buildItems(rows, { skipFedEx }) {
 
 async function main() {
   const { dryRun, reportOnly } = parseArgs();
-  /** Skip FedEx only in dry-run (no API keys / faster). Report-only still polls FedEx. */
+  /** Dry-run: no FedEx. SKIP_FEDEX_API=1: use sheet + public FedEx link only (no developer API). */
   const skipFedEx = dryRun;
+  const linkOnly = !dryRun && isSkipFedExApi();
 
   const labelKai = process.env.SHEET_KAI_LABEL || "Kai 2026";
   const labelMomo = process.env.SHEET_MOMO_LABEL || "Momo/Tyler 2026";
@@ -87,7 +103,7 @@ async function main() {
   ]);
 
   const rows = [...kaiRows, ...momoRows];
-  const items = await buildItems(rows, { skipFedEx });
+  const items = await buildItems(rows, { skipFedEx, linkOnly });
 
   const html = renderDashboardHtml({ generatedAt: new Date(), items });
   const outDir = process.env.REPORT_DIR || path.join(process.cwd(), "dist");
@@ -127,8 +143,15 @@ async function main() {
 
   const to = process.env.BOSS_PHONE_E164;
   const from = process.env.TWILIO_FROM_E164;
-  if (!to || !from) {
-    throw new Error("Set BOSS_PHONE_E164 and TWILIO_FROM_E164 to send SMS.");
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const smsReady = to && from && sid && token;
+  if (!smsReady) {
+    // eslint-disable-next-line no-console
+    console.log(
+      "SMS skipped — set BOSS_PHONE_E164, TWILIO_FROM_E164, TWILIO_ACCOUNT_SID, and TWILIO_AUTH_TOKEN to send."
+    );
+    return;
   }
 
   await sendTwilioSmsFetch({ to, from, body: smsBody });
