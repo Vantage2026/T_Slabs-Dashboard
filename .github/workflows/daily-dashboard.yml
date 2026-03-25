@@ -107,6 +107,8 @@ jobs:
           SHEET_KAI_GID: ${{ secrets.SHEET_KAI_GID }}
           SHEET_MOMO_ID: ${{ secrets.SHEET_MOMO_ID }}
           SHEET_MOMO_GID: ${{ secrets.SHEET_MOMO_GID }}
+          REPORT_RECENT_DAYS: ${{ secrets.REPORT_RECENT_DAYS }}
+          REPORT_TIMEZONE: ${{ secrets.REPORT_TIMEZONE }}
           # Public URL after deploy (GitHub Pages project site). Override with secret if you use a custom domain.
           DASHBOARD_PUBLIC_URL: ${{ secrets.DASHBOARD_PUBLIC_URL }}
         run: |

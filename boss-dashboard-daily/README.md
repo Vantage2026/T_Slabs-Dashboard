@@ -55,7 +55,7 @@ The workflow **`.github/workflows/daily-dashboard.yml`** (repo root):
 | `TWILIO_FROM_E164` | Your Twilio number, e.g. `+1...` |
 | `BOSS_PHONE_E164` | Recipient(s), E.164 — comma-separated |
 
-Optional: `FEDEX_USE_SANDBOX` (API mode only), `SMS_INTRO`, `SHEET_*`, `DASHBOARD_PUBLIC_URL` (override Pages URL).
+Optional: `FEDEX_USE_SANDBOX` (API mode only), `SMS_INTRO`, `SHEET_*`, `DASHBOARD_PUBLIC_URL` (override Pages URL), `REPORT_RECENT_DAYS` (default **14**; use `0` for all rows), `REPORT_TIMEZONE` (default `America/New_York`, used for the date window).
 
 **Gmail from Actions:** Use the **`tslabsdailybrief@gmail.com`** mailbox (or any Gmail) with an **app password** (Google Account → Security → 2-Step Verification → App passwords). Set `SMTP_USER` / `EMAIL_FROM` to that address and `SMTP_PASS` to the app password. In Gmail, **enable IMAP** (Settings → Forwarding and POP/IMAP) so a copy can be saved to **Sent** (Gmail’s SMTP API send often does not appear in Sent; the workflow IMAP-appends to `[Gmail]/Sent Mail` by default for `smtp.gmail.com`, or set `EMAIL_APPEND_SENT_IMAP=0` to skip). If Gmail blocks datacenter IPs, use your provider’s SMTP (e.g. SendGrid) instead.
 

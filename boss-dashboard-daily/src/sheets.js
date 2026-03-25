@@ -145,6 +145,83 @@ function parseRow(row, col, sourceLabel) {
   };
 }
 
+/** Google Sheets / Excel serial day → Date (UTC noon on that civil day). */
+function serialToDate(serial) {
+  const whole = Math.floor(Number(serial));
+  const epoch = Date.UTC(1899, 11, 30);
+  return new Date(epoch + whole * 86400000);
+}
+
+/**
+ * Parse a sheet Date cell (string M/D/Y, ISO, or numeric serial as string/number).
+ */
+function parseSheetDateValue(raw) {
+  if (raw == null || raw === "") return null;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    if (raw > 200 && raw < 800000) return serialToDate(raw);
+    return null;
+  }
+  const s = String(raw).trim();
+  if (!s) return null;
+  if (/^\d+(\.\d+)?$/.test(s)) {
+    const n = Number(s);
+    if (n > 200 && n < 800000) return serialToDate(n);
+  }
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const mdY = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/);
+  if (mdY) {
+    let y = Number(mdY[3]);
+    if (mdY[3].length <= 2 && y < 100) y += y < 50 ? 2000 : 1900;
+    const mo = Number(mdY[1]);
+    const day = Number(mdY[2]);
+    const d = new Date(y, mo - 1, day);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return d;
+  return null;
+}
+
+function calendarDateInTimeZone(date, timeZone) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+/** YYYY-MM-DD minus n calendar days (naive Gregorian, stable for comparisons). */
+function civilDateMinusDays(ymd, n) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const u = Date.UTC(y, m - 1, d) - n * 86400000;
+  const x = new Date(u);
+  return `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, "0")}-${String(x.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Keep rows whose Date column falls within the last `days` calendar days in `timeZone` (inclusive of cutoff day).
+ * Rows with missing/unparseable dates are kept so bad sheet data is not hidden silently.
+ */
+function filterRowsWithinDays(rows, days, timeZone) {
+  if (!rows.length || days <= 0) return rows;
+  const today = calendarDateInTimeZone(new Date(), timeZone);
+  if (!today) return rows;
+  const cutoff = civilDateMinusDays(today, days);
+  return rows.filter((row) => {
+    const dt = parseSheetDateValue(row.date);
+    if (!dt) return true;
+    const rowDay = calendarDateInTimeZone(dt, timeZone);
+    if (!rowDay) return true;
+    return rowDay >= cutoff;
+  });
+}
+
 function isFedExTrackingNumber(s) {
   if (!s || s.length < 10) return false;
   if (/^#/.test(s)) return false;
@@ -181,4 +258,6 @@ module.exports = {
   loadTrackingRows,
   isFedExTrackingNumber,
   parseRow,
+  filterRowsWithinDays,
+  parseSheetDateValue,
 };

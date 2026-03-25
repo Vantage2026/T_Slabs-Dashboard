@@ -6,7 +6,7 @@ require("dotenv").config();
 
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const { loadTrackingRows } = require("./sheets");
+const { loadTrackingRows, filterRowsWithinDays } = require("./sheets");
 const { trackOne } = require("./fedex");
 const { fedexPublicTrackUrl, isSkipFedExApi } = require("./tracking");
 const { renderDashboardHtml, escapeHtml } = require("./render-html");
@@ -124,7 +124,16 @@ async function main() {
     loadTrackingRows(SHEET_MOMO, SHEET_MOMO_GID, labelMomo),
   ]);
 
-  const rows = [...kaiRows, ...momoRows];
+  let rows = [...kaiRows, ...momoRows];
+  const recentDays = Number.parseInt(process.env.REPORT_RECENT_DAYS ?? "14", 10);
+  if (Number.isFinite(recentDays) && recentDays > 0) {
+    const tz = process.env.REPORT_TIMEZONE || "America/New_York";
+    const before = rows.length;
+    rows = filterRowsWithinDays(rows, recentDays, tz);
+    // eslint-disable-next-line no-console
+    console.log(`Report: last ${recentDays} days (${tz}) — ${rows.length} of ${before} FedEx rows`);
+  }
+
   const items = await buildItems(rows, { skipFedEx, linkOnly });
 
   const html = renderDashboardHtml({ generatedAt: new Date(), items });
