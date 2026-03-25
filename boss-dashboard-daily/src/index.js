@@ -13,6 +13,7 @@ const { renderDashboardHtml, escapeHtml } = require("./render-html");
 const { sendTwilioSmsFetch } = require("./sms");
 const { sendSmtpMail, buildRawMime, smtpPortNumber } = require("./email-smtp");
 const { appendToImapMailbox } = require("./email-imap-sent");
+const { sendResendEmail } = require("./email-resend");
 
 const SHEET_KAI = process.env.SHEET_KAI_ID || "15oaXW2GEyMl7ES5AV_nJIdx7wG0nmMgoRjiEzyaax1A";
 const SHEET_KAI_GID = process.env.SHEET_KAI_GID || "1560013633";
@@ -201,18 +202,45 @@ async function main() {
   const emailFromList = parseAddressList(fromRaw);
   const emailFromHeader = emailFromList.join(", ");
 
+  const resendKey = String(process.env.RESEND_API_KEY || "").trim();
+  const resendFrom = (
+    process.env.RESEND_FROM || "T Slabs daily brief <onboarding@resend.dev>"
+  ).trim();
+  const resendReady = Boolean(resendKey && emailTos.length > 0);
+
   const smtpReady = smtpHost && smtpUser && smtpPass && emailFromList.length > 0 && emailTos.length > 0;
   // eslint-disable-next-line no-console
   console.log(
-    `[notify] Email: SMTP_HOST=${smtpHost || "(unset)"} SMTP_USER=${smtpUser ? maskEmail(smtpUser) : "(unset)"} SMTP_PASS=${smtpPass ? "set" : "(unset)"} EMAIL_TO count=${emailTos.length}`
+    `[notify] Email: RESEND_API_KEY=${resendKey ? "set" : "unset"} | SMTP_HOST=${smtpHost || "(unset)"} SMTP_USER=${smtpUser ? maskEmail(smtpUser) : "(unset)"} SMTP_PASS=${smtpPass ? "set" : "(unset)"} | EMAIL_TO count=${emailTos.length}`
   );
 
-  if (smtpReady) {
-    if (!dashboardUrl) {
-      // eslint-disable-next-line no-console
-      console.log("Email skipped — DASHBOARD_PUBLIC_URL is empty.");
-    } else {
-      const smtpPort = smtpPortNumber(process.env.SMTP_PORT);
+  if (emailTos.length === 0) {
+    // eslint-disable-next-line no-console
+    console.log(
+      "Email skipped — set repository secret EMAIL_TO with comma-separated recipient addresses (your inbox must be listed)."
+    );
+  } else if (!dashboardUrl) {
+    // eslint-disable-next-line no-console
+    console.log("Email skipped — DASHBOARD_PUBLIC_URL is empty.");
+  } else if (resendReady) {
+    // eslint-disable-next-line no-console
+    console.log(
+      "[notify] Using Resend API (HTTPS). Gmail SMTP from GitHub IPs is often blocked; Resend usually works without app passwords."
+    );
+    // eslint-disable-next-line no-console
+    console.log("[notify] Resend To:", emailTos.map(maskEmail).join(", "));
+    const resendOut = await sendResendEmail({
+      apiKey: resendKey,
+      from: resendFrom,
+      toAddresses: emailTos,
+      subject: emailSubject,
+      text: notifyPlain,
+      html: emailHtml,
+    });
+    // eslint-disable-next-line no-console
+    console.log(`[notify] Resend accepted. id=${resendOut?.id ?? JSON.stringify(resendOut).slice(0, 120)}`);
+  } else if (smtpReady) {
+    const smtpPort = smtpPortNumber(process.env.SMTP_PORT);
       const smtpSecure = process.env.SMTP_SECURE === "1" || process.env.SMTP_SECURE === "true";
 
       if (/gmail\.com/i.test(smtpHost) && emailFromHeader.includes(",")) {
@@ -289,17 +317,10 @@ async function main() {
           );
         }
       }
-    }
   } else {
-    const need = [];
-    if (!smtpHost) need.push("SMTP_HOST");
-    if (!smtpUser) need.push("SMTP_USER");
-    if (!smtpPass) need.push("SMTP_PASS");
-    if (emailFromList.length === 0) need.push("EMAIL_FROM or SMTP_USER (comma-separated allowed)");
-    if (emailTos.length === 0) need.push("EMAIL_TO (repo secret: comma-separated recipient addresses)");
     // eslint-disable-next-line no-console
     console.log(
-      `Email skipped — add GitHub Actions repository secrets: ${need.join(", ")}. Your address must appear in EMAIL_TO to receive the brief.`
+      "Email skipped — add repository secret RESEND_API_KEY (Resend.com, free tier) or SMTP_HOST + SMTP_USER + SMTP_PASS + From (EMAIL_FROM or SMTP_USER)."
     );
   }
 

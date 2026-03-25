@@ -86,7 +86,9 @@ jobs:
           TWILIO_FROM_E164: ${{ secrets.TWILIO_FROM_E164 }}
           BOSS_PHONE_E164: ${{ secrets.BOSS_PHONE_E164 }}
           SMS_INTRO: ${{ secrets.SMS_INTRO }}
-          # Optional free notifications via SMTP (e.g. Gmail app password). Omit Twilio secrets to use email only.
+          # Email: RESEND_API_KEY (HTTPS, reliable from Actions) or SMTP_* (Gmail often blocks Actions IPs).
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: ${{ secrets.RESEND_FROM }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           # SMTP_PORT optional (default 587). Add secret only if not 587 (e.g. 465 + SMTP_SECURE=1).
           SMTP_PORT: ${{ secrets.SMTP_PORT }}

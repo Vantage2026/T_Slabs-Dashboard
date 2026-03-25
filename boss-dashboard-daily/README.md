@@ -37,7 +37,9 @@ The workflow **`.github/workflows/daily-dashboard.yml`** (repo root):
 | `SKIP_FEDEX_API` | Set to `1` to **skip** FedEx developer API; uses public tracking links only (omit `FEDEX_*` secrets) |
 | `FEDEX_API_KEY` | FedEx API key (not needed if `SKIP_FEDEX_API=1`) |
 | `FEDEX_SECRET_KEY` | FedEx secret (not needed if `SKIP_FEDEX_API=1`) |
-| `SMTP_HOST` | e.g. `smtp.gmail.com` — **optional**; omit all `SMTP_*` / `EMAIL_*` to skip email |
+| `RESEND_API_KEY` | [Resend](https://resend.com) API key — **preferred** from GitHub Actions (no SMTP / Gmail IP issues) |
+| `RESEND_FROM` | Optional; default `T Slabs daily brief <onboarding@resend.dev>`; verify your domain in Resend for production |
+| `SMTP_HOST` | e.g. `smtp.gmail.com` — used only if **`RESEND_API_KEY`** is unset |
 | `SMTP_PORT` | **Optional** — omit on GitHub if the UI complains; the app defaults to **587**. Use **465** only with `SMTP_SECURE=1` (implicit TLS). |
 | `SMTP_SECURE` | Set `1` or `true` only for implicit TLS (typical on port 465) |
 | `SMTP_USER` | SMTP login (often your Gmail address) |
@@ -57,7 +59,9 @@ The workflow **`.github/workflows/daily-dashboard.yml`** (repo root):
 
 Optional: `FEDEX_USE_SANDBOX` (API mode only), `SMS_INTRO`, `SHEET_*`, `DASHBOARD_PUBLIC_URL` (override Pages URL), `REPORT_RECENT_DAYS` (default **14**; use `0` for all rows), `REPORT_TIMEZONE` (default `America/New_York`, used for the date window).
 
-**Gmail from Actions:** Use the **`tslabsdailybrief@gmail.com`** mailbox (or any Gmail) with an **app password** (Google Account → Security → 2-Step Verification → App passwords). Set `SMTP_USER` / `EMAIL_FROM` to that address and `SMTP_PASS` to the app password. In Gmail, **enable IMAP** (Settings → Forwarding and POP/IMAP) so a copy can be saved to **Sent** (Gmail’s SMTP API send often does not appear in Sent; the workflow IMAP-appends to `[Gmail]/Sent Mail` by default for `smtp.gmail.com`, or set `EMAIL_APPEND_SENT_IMAP=0` to skip). If Gmail blocks datacenter IPs, use your provider’s SMTP (e.g. SendGrid) instead.
+**Email from GitHub Actions (recommended):** Add **`RESEND_API_KEY`** from [Resend](https://resend.com) (free tier). HTTPS API avoids **Gmail SMTP blocking** datacenter IPs. Set **`EMAIL_TO`** as usual. Optional **`RESEND_FROM`** (default `T Slabs daily brief <onboarding@resend.dev>`); for multiple recipients or custom branding, verify a domain in Resend and set `RESEND_FROM` to an address on that domain. If **`RESEND_API_KEY`** is set, Resend is used instead of SMTP.
+
+**Gmail SMTP (optional):** App password on `SMTP_USER` / `SMTP_PASS`; **enable IMAP** if you want the IMAP Sent copy. Omit **`RESEND_API_KEY`** to use SMTP only.
 
 **Local development** can still use **`GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_PRIVATE_KEY`** in `.env` (or OAuth) — no WIF needed on your Mac.
 
@@ -110,10 +114,10 @@ Generating a **PNG** for MMS would need headless Chrome or an image API; this pa
 1. **Workflow skipped** — The job only runs at **8:00 AM America/New_York** unless you use **Actions → Run workflow → force**. Open the run: if you see “Not 8 AM … skipping”, no email is attempted.
 2. **`EMAIL_TO` required** — The sender mailbox (`SMTP_USER`) does **not** automatically receive the brief. Add **your** address (and anyone else’s) to the **`EMAIL_TO`** repository secret, comma-separated.
 3. **Actions log** — Expand **Run dashboard + email / SMS**. Look for `[notify] Email:` — it shows whether secrets are present and a **masked** recipient list. `Email skipped` lists what’s missing.
-4. **Gmail** — Use an **app password**, not your normal password. If SMTP fails with login / 535 errors, Gmail may be blocking **GitHub’s IP**; try another SMTP provider (e.g. SendGrid) or send from a different host.
-5. **Spam / Promotions** — Check those folders for the subject line (default **Daily card shipment brief**).
-6. **App password newline** — Re-paste `SMTP_PASS` in GitHub secrets with **no trailing line break** (a stray newline makes Gmail reject login). The app now **trims** the password; re-save the secret if it was added earlier.
-7. **Proof in the log** — After a successful send you should see **`[notify] SMTP accepted message`** and a **`messageId=`** line. If you only see **`Email skipped`**, fix the listed secrets. If the job **fails** on **`SMTP verify failed`**, Gmail is rejecting auth or blocking GitHub’s IP.
+4. **Gmail SMTP vs Actions** — Gmail often **blocks SMTP** from GitHub even with a correct app password. Prefer **`RESEND_API_KEY`** (see README) for reliable delivery.
+5. **Spam / Promotions** — Check for subject **Daily card shipment brief**.
+6. **SMTP only** — Use a Gmail **app password** (not your normal password); re-paste `SMTP_PASS` with no trailing newline.
+7. **Proof in the log** — Look for **`[notify] Resend accepted`** or **`[notify] SMTP accepted`**. **`SMTP verify failed`** → try Resend.
 
 ## Schedule: every day 8:00 AM Eastern
 
