@@ -132,7 +132,9 @@ async function main() {
   console.log(`Wrote ${outFile}, index.html, .nojekyll`);
 
   const dashboardUrl = (process.env.DASHBOARD_PUBLIC_URL || "").trim();
-  const intro = (process.env.SMS_INTRO || "Card shipments — open your dashboard:").trim();
+  const intro = (
+    process.env.SMS_INTRO || "Good morning Michael and Tyler. Here is your daily brief."
+  ).trim();
   /** Plain text; the URL is auto-linked on phones. Kept short for one SMS segment. */
   const smsBody = dashboardUrl ? `${intro}\n\n${dashboardUrl}` : "";
 
