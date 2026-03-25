@@ -9,7 +9,7 @@ const path = require("node:path");
 const { loadTrackingRows } = require("./sheets");
 const { trackOne } = require("./fedex");
 const { fedexPublicTrackUrl, isSkipFedExApi } = require("./tracking");
-const { renderDashboardHtml, buildSmsSummary } = require("./render-html");
+const { renderDashboardHtml } = require("./render-html");
 const { sendTwilioSmsFetch } = require("./sms");
 
 const SHEET_KAI = process.env.SHEET_KAI_ID || "15oaXW2GEyMl7ES5AV_nJIdx7wG0nmMgoRjiEzyaax1A";
@@ -26,6 +26,7 @@ function parseArgs() {
 async function buildItems(rows, { skipFedEx, linkOnly }) {
   const items = [];
   for (const row of rows) {
+    const trackUrl = fedexPublicTrackUrl(row.tracking);
     if (row.delivered) {
       items.push({
         sourceLabel: row.sourceLabel,
@@ -34,6 +35,7 @@ async function buildItems(rows, { skipFedEx, linkOnly }) {
         tracking: row.tracking,
         delivered: true,
         statusLine: `${row.tracking} — Delivered`,
+        trackUrl,
       });
       continue;
     }
@@ -46,20 +48,20 @@ async function buildItems(rows, { skipFedEx, linkOnly }) {
         tracking: row.tracking,
         delivered: false,
         statusLine: `${row.tracking} — (FedEx not queried — dry run)`,
+        trackUrl,
       });
       continue;
     }
 
     if (linkOnly) {
-      const url = fedexPublicTrackUrl(row.tracking);
       items.push({
         sourceLabel: row.sourceLabel,
         date: row.date,
         cards: row.cards,
         tracking: row.tracking,
         delivered: false,
-        statusLine: `Open FedEx for live status: ${url}`,
-        trackUrl: url,
+        statusLine: "Tap the tracking number or link below to open FedEx.",
+        trackUrl,
       });
       continue;
     }
@@ -73,6 +75,7 @@ async function buildItems(rows, { skipFedEx, linkOnly }) {
         tracking: row.tracking,
         delivered: false,
         statusLine: t.line,
+        trackUrl,
       });
     } catch (e) {
       items.push({
@@ -82,6 +85,7 @@ async function buildItems(rows, { skipFedEx, linkOnly }) {
         tracking: row.tracking,
         delivered: false,
         statusLine: `${row.tracking} — ${e.message || String(e)}`,
+        trackUrl,
       });
     }
   }
@@ -127,17 +131,14 @@ async function main() {
   // eslint-disable-next-line no-console
   console.log(`Wrote ${outFile}, index.html, .nojekyll`);
 
-  const publicUrl = process.env.DASHBOARD_PUBLIC_URL || "";
-  const summary = buildSmsSummary(items);
-  const intro = process.env.SMS_INTRO || "Daily card shipment tracking:";
-  let smsBody = `${intro}\n\n${summary}`;
-  if (publicUrl) {
-    smsBody += `\n\nFull dashboard: ${publicUrl}`;
-  }
+  const dashboardUrl = (process.env.DASHBOARD_PUBLIC_URL || "").trim();
+  const intro = (process.env.SMS_INTRO || "Card shipments — open your dashboard:").trim();
+  /** Plain text; the URL is auto-linked on phones. Kept short for one SMS segment. */
+  const smsBody = dashboardUrl ? `${intro}\n\n${dashboardUrl}` : "";
 
   if (dryRun || reportOnly) {
     // eslint-disable-next-line no-console
-    console.log("\n--- SMS preview ---\n", smsBody);
+    console.log("\n--- SMS preview (link only) ---\n", smsBody || "(set DASHBOARD_PUBLIC_URL for SMS body)");
     return;
   }
 
@@ -165,6 +166,14 @@ async function main() {
   if (recipients.length === 0) {
     // eslint-disable-next-line no-console
     console.log("SMS skipped — BOSS_PHONE_E164 has no numbers after parsing.");
+    return;
+  }
+
+  if (!dashboardUrl) {
+    // eslint-disable-next-line no-console
+    console.log(
+      "SMS skipped — DASHBOARD_PUBLIC_URL is empty. Set it (GitHub Actions sets a default after deploy) so the text can include the live dashboard link."
+    );
     return;
   }
 
