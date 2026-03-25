@@ -145,18 +145,26 @@ async function main() {
   const from = process.env.TWILIO_FROM_E164;
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
-  const smsReady = to && from && sid && token;
-  if (!smsReady) {
+  const twilioKeys = [
+    "BOSS_PHONE_E164",
+    "TWILIO_FROM_E164",
+    "TWILIO_ACCOUNT_SID",
+    "TWILIO_AUTH_TOKEN",
+  ];
+  const missing = twilioKeys.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
     // eslint-disable-next-line no-console
     console.log(
-      "SMS skipped — set BOSS_PHONE_E164, TWILIO_FROM_E164, TWILIO_ACCOUNT_SID, and TWILIO_AUTH_TOKEN to send."
+      `SMS skipped — missing GitHub Actions secrets (or empty): ${missing.join(", ")}. Add all four to send SMS.`
     );
     return;
   }
 
   await sendTwilioSmsFetch({ to, from, body: smsBody });
   // eslint-disable-next-line no-console
-  console.log("SMS sent.");
+  console.log(
+    "SMS sent via Twilio. (Trial accounts: recipient number must be verified in Twilio Console → Phone Numbers → Verified Caller IDs.)"
+  );
 }
 
 main().catch((err) => {
