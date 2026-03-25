@@ -1,4 +1,7 @@
 const { google } = require("googleapis");
+const { GoogleAuth } = require("google-auth-library");
+
+const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly";
 
 const DEFAULT_COL = {
   date: 0,
@@ -7,14 +10,39 @@ const DEFAULT_COL = {
   delivered: 5,
 };
 
-function getGoogleAuth() {
+/**
+ * Path to ADC file (WIF or key). Auth action may set GOOGLE_APPLICATION_CREDENTIALS and/or GOOGLE_GHA_CREDS_PATH.
+ */
+function getAdcCredentialPath() {
+  return (
+    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    process.env.GOOGLE_GHA_CREDS_PATH ||
+    process.env.CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE ||
+    ""
+  ).trim();
+}
+
+/**
+ * Auth order:
+ * 1) Application Default Credentials (GitHub Actions + google-github-actions/auth WIF)
+ * 2) Service account JWT (GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY) — local / legacy CI
+ * 3) OAuth token file
+ */
+async function getGoogleAuthClient() {
+  const adcPath = getAdcCredentialPath();
+  if (adcPath) {
+    const auth = new GoogleAuth({ scopes: [SHEETS_SCOPE], keyFilename: adcPath });
+    return auth.getClient();
+  }
+
   if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
     return new google.auth.JWT({
       email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
       key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+      scopes: [SHEETS_SCOPE],
     });
   }
+
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   const redirectUri =
@@ -22,7 +50,7 @@ function getGoogleAuth() {
   const tokenFile = process.env.GOOGLE_OAUTH_TOKEN_FILE || ".state/google-oauth-token.json";
   if (!clientId || !clientSecret) {
     throw new Error(
-      "Configure GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY, or OAuth client + token file."
+      "Google auth: set WIF/ADC (GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_GHA_CREDS_PATH from google-github-actions/auth), or GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY, or OAuth client + token file."
     );
   }
   const fs = require("node:fs");
@@ -37,8 +65,7 @@ function getGoogleAuth() {
 /**
  * Resolve sheet tab title from numeric gid (from spreadsheet URL).
  */
-async function getSheetTitleByGid(spreadsheetId, sheetGid) {
-  const auth = getGoogleAuth();
+async function getSheetTitleByGid(spreadsheetId, sheetGid, auth) {
   const sheetsApi = google.sheets({ version: "v4", auth });
   const { data } = await sheetsApi.spreadsheets.get({ spreadsheetId });
   const gid = Number.parseInt(String(sheetGid), 10);
@@ -129,9 +156,9 @@ function isFedExTrackingNumber(s) {
  * Load tracking rows from one spreadsheet tab (by gid).
  */
 async function loadTrackingRows(spreadsheetId, sheetGid, sourceLabel) {
-  const auth = getGoogleAuth();
+  const auth = await getGoogleAuthClient();
   const sheetsApi = google.sheets({ version: "v4", auth });
-  const title = await getSheetTitleByGid(spreadsheetId, sheetGid);
+  const title = await getSheetTitleByGid(spreadsheetId, sheetGid, auth);
   const range = `${escapeSheetTitle(title)}!A:Z`;
   const { data } = await sheetsApi.spreadsheets.values.get({ spreadsheetId, range });
   const values = data.values || [];
@@ -150,7 +177,7 @@ async function loadTrackingRows(spreadsheetId, sheetGid, sourceLabel) {
 }
 
 module.exports = {
-  getGoogleAuth,
+  getGoogleAuthClient,
   loadTrackingRows,
   isFedExTrackingNumber,
   parseRow,

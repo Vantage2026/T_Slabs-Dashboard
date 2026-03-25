@@ -67,13 +67,15 @@ jobs:
           workload_identity_provider: ${{ secrets.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
           create_credentials_file: true
+          # Default true: writes GOOGLE_APPLICATION_CREDENTIALS (+ GOOGLE_GHA_CREDS_PATH) to GITHUB_ENV for later steps.
+          export_environment_variables: true
 
       - name: Run dashboard + SMS
         if: steps.gate.outputs.skip == 'false'
         working-directory: boss-dashboard-daily
         env:
-          # Pass file path explicitly so node/googleapis always sees ADC after WIF (see auth step output).
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+          # Do not set GOOGLE_APPLICATION_CREDENTIALS here — if steps.auth.outputs.credentials_file_path were empty,
+          # it would override the auth action's GITHUB_ENV and break ADC. See boss-dashboard-daily/src/sheets.js (GHA paths).
           # Set secret SKIP_FEDEX_API=1 to use sheet + public fedex.com links only (no FedEx developer API).
           SKIP_FEDEX_API: ${{ secrets.SKIP_FEDEX_API }}
           FEDEX_API_KEY: ${{ secrets.FEDEX_API_KEY }}
