@@ -111,6 +111,14 @@ function maskEmail(addr) {
   return `${s[0]}…@${s.slice(at + 1)}`;
 }
 
+/** In transit / not delivered first; delivered rows last (stable within each group). */
+function sortItemsDeliveryFirst(items) {
+  return [...items].sort((a, b) => {
+    if (a.delivered !== b.delivered) return a.delivered ? 1 : -1;
+    return 0;
+  });
+}
+
 async function main() {
   const { dryRun, reportOnly } = parseArgs();
   /** Dry-run: no FedEx. SKIP_FEDEX_API=1: use sheet + public FedEx link only (no developer API). */
@@ -136,8 +144,9 @@ async function main() {
   }
 
   const items = await buildItems(rows, { skipFedEx, linkOnly });
+  const sortedItems = sortItemsDeliveryFirst(items);
 
-  const html = renderDashboardHtml({ generatedAt: new Date(), items });
+  const html = renderDashboardHtml({ generatedAt: new Date(), items: sortedItems });
   const outDir = process.env.REPORT_DIR || path.join(process.cwd(), "dist");
   const outFile = path.join(outDir, "report.html");
   await fs.mkdir(outDir, { recursive: true });
