@@ -93,7 +93,8 @@ async function buildItems(rows, { skipFedEx, linkOnly }) {
   return items;
 }
 
-function parseEmailRecipients(raw) {
+/** Comma, semicolon, or newline — used for EMAIL_TO and EMAIL_FROM. */
+function parseAddressList(raw) {
   return String(raw || "")
     .split(/[,;\n]+/)
     .map((s) => s.trim())
@@ -157,8 +158,16 @@ async function main() {
     : "";
 
   if (dryRun || reportOnly) {
+    const previewFrom = parseAddressList((process.env.EMAIL_FROM || process.env.SMTP_USER || "").trim()).join(", ");
     // eslint-disable-next-line no-console
-    console.log("\n--- Email preview (subject + plain body) ---\n", emailSubject, "\n", notifyPlain || "(need DASHBOARD_PUBLIC_URL)");
+    console.log(
+      "\n--- Email preview (From / subject / plain body) ---\n",
+      previewFrom || "(set SMTP_USER or EMAIL_FROM)",
+      "\n",
+      emailSubject,
+      "\n",
+      notifyPlain || "(need DASHBOARD_PUBLIC_URL)"
+    );
     // eslint-disable-next-line no-console
     console.log("\n--- SMS preview (link only) ---\n", notifyPlain || "(need DASHBOARD_PUBLIC_URL)");
     return;
@@ -168,10 +177,12 @@ async function main() {
   const smtpUser = (process.env.SMTP_USER || "").trim();
   const smtpPass = (process.env.SMTP_PASS || "").trim();
   const emailToRaw = (process.env.EMAIL_TO || "").trim();
-  const emailFrom = (process.env.EMAIL_FROM || smtpUser).trim();
-  const emailTos = parseEmailRecipients(emailToRaw);
+  const emailTos = parseAddressList(emailToRaw);
+  const fromRaw = (process.env.EMAIL_FROM || smtpUser || "").trim();
+  const emailFromList = parseAddressList(fromRaw);
+  const emailFromHeader = emailFromList.join(", ");
 
-  const smtpReady = smtpHost && smtpUser && smtpPass && emailFrom && emailTos.length > 0;
+  const smtpReady = smtpHost && smtpUser && smtpPass && emailFromList.length > 0 && emailTos.length > 0;
   if (smtpReady) {
     if (!dashboardUrl) {
       // eslint-disable-next-line no-console
@@ -185,7 +196,7 @@ async function main() {
         secure: smtpSecure,
         user: smtpUser,
         pass: smtpPass,
-        from: emailFrom,
+        from: emailFromHeader,
         to: emailTos.join(", "),
         subject: emailSubject,
         text: notifyPlain,
@@ -199,7 +210,7 @@ async function main() {
     if (!smtpHost) need.push("SMTP_HOST");
     if (!smtpUser) need.push("SMTP_USER");
     if (!smtpPass) need.push("SMTP_PASS");
-    if (!emailFrom) need.push("EMAIL_FROM or SMTP_USER");
+    if (emailFromList.length === 0) need.push("EMAIL_FROM or SMTP_USER (comma-separated allowed)");
     if (emailTos.length === 0) need.push("EMAIL_TO");
     // eslint-disable-next-line no-console
     console.log(`Email skipped — set ${need.join(", ")} for free SMTP (e.g. Gmail app password).`);

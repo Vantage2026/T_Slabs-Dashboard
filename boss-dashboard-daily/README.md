@@ -43,7 +43,7 @@ The workflow **`.github/workflows/daily-dashboard.yml`** (repo root):
 | `SMTP_USER` | SMTP login (often your Gmail address) |
 | `SMTP_PASS` | App password (Gmail: 2FA → App passwords), not your normal password |
 | `EMAIL_TO` | Comma-separated recipient addresses |
-| `EMAIL_FROM` | Optional; defaults to `SMTP_USER` |
+| `EMAIL_FROM` | Optional; defaults to `SMTP_USER`. Comma-separated for multiple addresses (some providers require each to be an allowed “send as” alias) |
 | `EMAIL_SUBJECT` | Optional; default `Daily card shipment brief` |
 | `TWILIO_ACCOUNT_SID` | **Optional** Twilio (paid SMS) |
 | `TWILIO_AUTH_TOKEN` | Twilio |
