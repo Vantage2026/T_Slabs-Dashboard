@@ -141,10 +141,7 @@ async function main() {
     return;
   }
 
-  const to = process.env.BOSS_PHONE_E164;
   const from = process.env.TWILIO_FROM_E164;
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
   const twilioKeys = [
     "BOSS_PHONE_E164",
     "TWILIO_FROM_E164",
@@ -160,10 +157,23 @@ async function main() {
     return;
   }
 
-  await sendTwilioSmsFetch({ to, from, body: smsBody });
+  /** Comma, semicolon, or newline — multiple E.164 recipients, e.g. +15551234567,+15559876543 */
+  const recipients = String(process.env.BOSS_PHONE_E164)
+    .split(/[,;\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (recipients.length === 0) {
+    // eslint-disable-next-line no-console
+    console.log("SMS skipped — BOSS_PHONE_E164 has no numbers after parsing.");
+    return;
+  }
+
+  for (const to of recipients) {
+    await sendTwilioSmsFetch({ to, from, body: smsBody });
+  }
   // eslint-disable-next-line no-console
   console.log(
-    "SMS sent via Twilio. (Trial accounts: recipient number must be verified in Twilio Console → Phone Numbers → Verified Caller IDs.)"
+    `SMS sent to ${recipients.length} number(s) via Twilio. (Trial: each recipient may need to be verified.)`
   );
 }
 
