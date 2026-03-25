@@ -11,7 +11,8 @@ const { trackOne } = require("./fedex");
 const { fedexPublicTrackUrl, isSkipFedExApi } = require("./tracking");
 const { renderDashboardHtml, escapeHtml } = require("./render-html");
 const { sendTwilioSmsFetch } = require("./sms");
-const { sendSmtpMail } = require("./email-smtp");
+const { sendSmtpMail, buildRawMime } = require("./email-smtp");
+const { appendToImapMailbox } = require("./email-imap-sent");
 
 const SHEET_KAI = process.env.SHEET_KAI_ID || "15oaXW2GEyMl7ES5AV_nJIdx7wG0nmMgoRjiEzyaax1A";
 const SHEET_KAI_GID = process.env.SHEET_KAI_GID || "1560013633";
@@ -190,6 +191,13 @@ async function main() {
     } else {
       const smtpPort = process.env.SMTP_PORT || "587";
       const smtpSecure = process.env.SMTP_SECURE === "1" || process.env.SMTP_SECURE === "true";
+
+      const bccExtra = parseAddressList(process.env.EMAIL_BCC || "");
+      const bccSelf = /^1|true|yes$/i.test(String(process.env.EMAIL_BCC_SELF || "").trim());
+      const bccSet = new Set(bccExtra);
+      if (bccSelf && smtpUser) bccSet.add(smtpUser);
+      const bccHeader = bccSet.size > 0 ? [...bccSet].join(", ") : undefined;
+
       await sendSmtpMail({
         host: smtpHost,
         port: smtpPort,
@@ -198,12 +206,55 @@ async function main() {
         pass: smtpPass,
         from: emailFromHeader,
         to: emailTos.join(", "),
+        bcc: bccHeader,
         subject: emailSubject,
         text: notifyPlain,
         html: emailHtml,
       });
       // eslint-disable-next-line no-console
       console.log(`Email sent to ${emailTos.length} address(es) via SMTP (${smtpHost}).`);
+
+      /** Gmail SMTP usually does not add a row in “Sent”; copy via IMAP APPEND unless disabled. */
+      const appendRaw = (process.env.EMAIL_APPEND_SENT_IMAP || "").trim().toLowerCase();
+      const isGmailSmtp = /gmail\.com/i.test(smtpHost);
+      const imapSentOff = appendRaw === "0" || appendRaw === "false" || appendRaw === "no";
+      const doImapSent =
+        !imapSentOff &&
+        (appendRaw === "1" ||
+          appendRaw === "true" ||
+          appendRaw === "yes" ||
+          ((appendRaw === "" || appendRaw === "auto") && isGmailSmtp));
+      if (doImapSent) {
+        try {
+          const rawMime = await buildRawMime({
+            from: emailFromHeader,
+            to: emailTos.join(", "),
+            bcc: bccHeader,
+            subject: emailSubject,
+            text: notifyPlain,
+            html: emailHtml,
+          });
+          const imapHost = (process.env.IMAP_HOST || "imap.gmail.com").trim();
+          const imapUser = (process.env.IMAP_USER || smtpUser).trim();
+          const imapPass = (process.env.IMAP_PASS || smtpPass).trim();
+          const sentBox = (process.env.IMAP_SENT_MAILBOX || "[Gmail]/Sent Mail").trim();
+          await appendToImapMailbox({
+            host: imapHost,
+            user: imapUser,
+            pass: imapPass,
+            mailboxPath: sentBox,
+            rawMime,
+          });
+          // eslint-disable-next-line no-console
+          console.log(`IMAP: saved copy to "${sentBox}" (${imapHost}).`);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "IMAP Sent copy failed (email was still delivered). Enable IMAP on the Gmail account; set EMAIL_APPEND_SENT_IMAP=0 to skip.",
+            e.message || e
+          );
+        }
+      }
     }
   } else {
     const need = [];

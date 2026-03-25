@@ -95,6 +95,14 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           EMAIL_SUBJECT: ${{ secrets.EMAIL_SUBJECT }}
+          EMAIL_BCC: ${{ secrets.EMAIL_BCC }}
+          EMAIL_BCC_SELF: ${{ secrets.EMAIL_BCC_SELF }}
+          # Gmail: auto IMAP copy to Sent unless EMAIL_APPEND_SENT_IMAP=0
+          EMAIL_APPEND_SENT_IMAP: ${{ secrets.EMAIL_APPEND_SENT_IMAP }}
+          IMAP_HOST: ${{ secrets.IMAP_HOST }}
+          IMAP_USER: ${{ secrets.IMAP_USER }}
+          IMAP_PASS: ${{ secrets.IMAP_PASS }}
+          IMAP_SENT_MAILBOX: ${{ secrets.IMAP_SENT_MAILBOX }}
           SHEET_KAI_ID: ${{ secrets.SHEET_KAI_ID }}
           SHEET_KAI_GID: ${{ secrets.SHEET_KAI_GID }}
           SHEET_MOMO_ID: ${{ secrets.SHEET_MOMO_ID }}

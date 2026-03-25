@@ -11,6 +11,7 @@ async function sendSmtpMail({
   pass,
   from,
   to,
+  bcc,
   subject,
   text,
   html,
@@ -24,10 +25,31 @@ async function sendSmtpMail({
   await transporter.sendMail({
     from,
     to,
+    bcc,
     subject,
     text,
     html,
   });
 }
 
-module.exports = { sendSmtpMail };
+/** RFC822 bytes — use for IMAP append to Sent (Gmail SMTP often does not file Sent). */
+function buildRawMime({ from, to, bcc, subject, text, html, date }) {
+  const MailComposer = require("nodemailer/lib/mail-composer");
+  const mail = new MailComposer({
+    from,
+    to,
+    bcc,
+    subject,
+    text,
+    html,
+    date: date || new Date(),
+  });
+  return new Promise((resolve, reject) => {
+    mail.compile().build((err, message) => {
+      if (err) reject(err);
+      else resolve(message);
+    });
+  });
+}
+
+module.exports = { sendSmtpMail, buildRawMime };

@@ -45,6 +45,11 @@ The workflow **`.github/workflows/daily-dashboard.yml`** (repo root):
 | `EMAIL_TO` | Comma-separated recipient addresses |
 | `EMAIL_FROM` | Optional; defaults to `SMTP_USER`. Comma-separated for multiple addresses (some providers require each to be an allowed “send as” alias) |
 | `EMAIL_SUBJECT` | Optional; default `Daily card shipment brief` |
+| `EMAIL_BCC` | Optional comma-separated BCC (e.g. archive copy) |
+| `EMAIL_BCC_SELF` | Set `1` to BCC `SMTP_USER` (inbox copy) |
+| `EMAIL_APPEND_SENT_IMAP` | `0` / `false` disables IMAP copy to Sent; empty defaults to **on** for `smtp.gmail.com` |
+| `IMAP_HOST` / `IMAP_USER` / `IMAP_PASS` | Optional; default `imap.gmail.com` and same user/pass as SMTP |
+| `IMAP_SENT_MAILBOX` | Optional; default `[Gmail]/Sent Mail` |
 | `TWILIO_ACCOUNT_SID` | **Optional** Twilio (paid SMS) |
 | `TWILIO_AUTH_TOKEN` | Twilio |
 | `TWILIO_FROM_E164` | Your Twilio number, e.g. `+1...` |
@@ -52,7 +57,7 @@ The workflow **`.github/workflows/daily-dashboard.yml`** (repo root):
 
 Optional: `FEDEX_USE_SANDBOX` (API mode only), `SMS_INTRO`, `SHEET_*`, `DASHBOARD_PUBLIC_URL` (override Pages URL).
 
-**Gmail from Actions:** Use the **`tslabsdailybrief@gmail.com`** mailbox (or any Gmail) with an **app password** (Google Account → Security → 2-Step Verification → App passwords). Set `SMTP_USER` / `EMAIL_FROM` to that address and `SMTP_PASS` to the app password. If Gmail blocks datacenter IPs, use your provider’s SMTP (e.g. SendGrid) instead.
+**Gmail from Actions:** Use the **`tslabsdailybrief@gmail.com`** mailbox (or any Gmail) with an **app password** (Google Account → Security → 2-Step Verification → App passwords). Set `SMTP_USER` / `EMAIL_FROM` to that address and `SMTP_PASS` to the app password. In Gmail, **enable IMAP** (Settings → Forwarding and POP/IMAP) so a copy can be saved to **Sent** (Gmail’s SMTP API send often does not appear in Sent; the workflow IMAP-appends to `[Gmail]/Sent Mail` by default for `smtp.gmail.com`, or set `EMAIL_APPEND_SENT_IMAP=0` to skip). If Gmail blocks datacenter IPs, use your provider’s SMTP (e.g. SendGrid) instead.
 
 **Local development** can still use **`GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_PRIVATE_KEY`** in `.env` (or OAuth) — no WIF needed on your Mac.
 
