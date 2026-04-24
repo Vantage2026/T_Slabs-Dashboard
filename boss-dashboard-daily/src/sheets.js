@@ -145,6 +145,17 @@ function parseRow(row, col, sourceLabel) {
   };
 }
 
+/**
+ * Support multiple tracking numbers in a single sheet cell.
+ * Column C can contain values like: "870123..., 870456..., 870789..."
+ */
+function splitTrackingNumbers(rawTracking) {
+  return String(rawTracking || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 /** Google Sheets / Excel serial day → Date (UTC noon on that civil day). */
 function serialToDate(serial) {
   const whole = Math.floor(Number(serial));
@@ -247,8 +258,12 @@ async function loadTrackingRows(spreadsheetId, sheetGid, sourceLabel) {
     const row = values[i] || [];
     const parsed = parseRow(row, col, sourceLabel);
     if (!parsed.tracking && !parsed.date) continue;
-    if (!isFedExTrackingNumber(parsed.tracking)) continue;
-    rows.push({ ...parsed, rowIndex: i + 1 });
+    const trackingNumbers = splitTrackingNumbers(parsed.tracking);
+    if (trackingNumbers.length === 0) continue;
+    for (const tracking of trackingNumbers) {
+      if (!isFedExTrackingNumber(tracking)) continue;
+      rows.push({ ...parsed, tracking, rowIndex: i + 1 });
+    }
   }
   return rows;
 }
