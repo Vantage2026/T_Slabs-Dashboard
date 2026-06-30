@@ -10,6 +10,44 @@ const DEFAULT_COL = {
   delivered: 5,
 };
 
+/** Transient network / STS failures on GitHub Actions (e.g. ERR_STREAM_PREMATURE_CLOSE). */
+function isTransientGoogleError(err) {
+  const code = err?.code || err?.error?.code;
+  const msg = String(err?.message || err?.error?.message || "");
+  const status = err?.response?.status;
+  return (
+    code === "ERR_STREAM_PREMATURE_CLOSE" ||
+    code === "ECONNRESET" ||
+    code === "ETIMEDOUT" ||
+    code === "ENOTFOUND" ||
+    code === "EAI_AGAIN" ||
+    msg.includes("Premature close") ||
+    msg.includes("socket hang up") ||
+    (typeof status === "number" && status >= 500 && status < 600)
+  );
+}
+
+async function withRetry(fn, { attempts = 5, baseMs = 3000, label = "Google API" } = {}) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientGoogleError(err) || i === attempts) throw err;
+      const delay = baseMs * 2 ** (i - 1);
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[${label}] attempt ${i}/${attempts} failed (${err.code || err.message}); retrying in ${delay}ms…`
+      );
+      await new Promise((resolve) => {
+        setTimeout(resolve, delay);
+      });
+    }
+  }
+  throw lastErr;
+}
+
 /**
  * Path to ADC file (WIF or key). Auth action may set GOOGLE_APPLICATION_CREDENTIALS and/or GOOGLE_GHA_CREDS_PATH.
  */
@@ -244,28 +282,33 @@ function isFedExTrackingNumber(s) {
  * Load tracking rows from one spreadsheet tab (by gid).
  */
 async function loadTrackingRows(spreadsheetId, sheetGid, sourceLabel) {
-  const auth = await getGoogleAuthClient();
-  const sheetsApi = google.sheets({ version: "v4", auth });
-  const title = await getSheetTitleByGid(spreadsheetId, sheetGid, auth);
-  const range = `${escapeSheetTitle(title)}!A:Z`;
-  const { data } = await sheetsApi.spreadsheets.values.get({ spreadsheetId, range });
-  const values = data.values || [];
-  if (values.length < 2) return [];
+  return withRetry(
+    async () => {
+      const auth = await getGoogleAuthClient();
+      const sheetsApi = google.sheets({ version: "v4", auth });
+      const title = await getSheetTitleByGid(spreadsheetId, sheetGid, auth);
+      const range = `${escapeSheetTitle(title)}!A:Z`;
+      const { data } = await sheetsApi.spreadsheets.values.get({ spreadsheetId, range });
+      const values = data.values || [];
+      if (values.length < 2) return [];
 
-  const col = inferColumns(values[0]);
-  const rows = [];
-  for (let i = 1; i < values.length; i += 1) {
-    const row = values[i] || [];
-    const parsed = parseRow(row, col, sourceLabel);
-    if (!parsed.tracking && !parsed.date) continue;
-    const trackingNumbers = splitTrackingNumbers(parsed.tracking);
-    if (trackingNumbers.length === 0) continue;
-    for (const tracking of trackingNumbers) {
-      if (!isFedExTrackingNumber(tracking)) continue;
-      rows.push({ ...parsed, tracking, rowIndex: i + 1 });
-    }
-  }
-  return rows;
+      const col = inferColumns(values[0]);
+      const rows = [];
+      for (let i = 1; i < values.length; i += 1) {
+        const row = values[i] || [];
+        const parsed = parseRow(row, col, sourceLabel);
+        if (!parsed.tracking && !parsed.date) continue;
+        const trackingNumbers = splitTrackingNumbers(parsed.tracking);
+        if (trackingNumbers.length === 0) continue;
+        for (const tracking of trackingNumbers) {
+          if (!isFedExTrackingNumber(tracking)) continue;
+          rows.push({ ...parsed, tracking, rowIndex: i + 1 });
+        }
+      }
+      return rows;
+    },
+    { label: `Sheets ${sourceLabel}` }
+  );
 }
 
 module.exports = {

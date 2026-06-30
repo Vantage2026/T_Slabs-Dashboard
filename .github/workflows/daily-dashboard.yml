@@ -118,7 +118,16 @@ jobs:
           if [ -z "${DASHBOARD_PUBLIC_URL:-}" ]; then
             export DASHBOARD_PUBLIC_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/report.html"
           fi
-          npm start
+          for attempt in 1 2 3; do
+            echo "Dashboard run attempt ${attempt}/3"
+            npm start && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              echo "Run failed; waiting 45s before retry (transient Google STS/network errors)…"
+              sleep 45
+            fi
+          done
+          echo "All dashboard run attempts failed."
+          exit 1
 
       - name: Upload Pages artifact
         if: steps.gate.outputs.skip == 'false'
